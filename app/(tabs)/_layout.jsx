@@ -3,12 +3,14 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import ProtectedRoute from '../../components/ProtectedRoute.jsx';
 
 export default function TabLayout() {
   const theme = useTheme();
 
   return (
-    <Tabs
+    <ProtectedRoute>
+        <Tabs
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: 'gray',
@@ -43,5 +45,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </ProtectedRoute>
   );
 }

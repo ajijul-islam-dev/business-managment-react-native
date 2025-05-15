@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState,useContext } from 'react';
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from "react-native";
 import { Appbar, Card, Text, useTheme, Menu, Divider } from "react-native-paper";
-import { Link } from "expo-router";
+import { Link,useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
+import {AuthContext} from '../../providers/AuthProvider.jsx';
 
 const { width } = Dimensions.get('window');
 
 const HomeScreen = () => {
+  
   const theme = useTheme();
   const [visible, setVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState("Today");
-
+  const router = useRouter()
   // Static metrics data
   const metricsData = {
     today: {
@@ -55,6 +57,7 @@ const HomeScreen = () => {
     }
   };
 
+  const {user} = useContext(AuthContext)
   const timePeriods = [
     { label: "Today", value: "today" },
     { label: "This Week", value: "thisWeek" },
@@ -69,7 +72,8 @@ const HomeScreen = () => {
   const products = {
     total: 1248,
     lowStock: 42,
-    outOfStock: 12
+    outOfStock: 12,
+    dues : 3500
   };
 
   // Clickable metrics
@@ -86,45 +90,32 @@ const HomeScreen = () => {
       value: "+", 
       icon: "plus-circle", 
       color: "#2196F3",
-      href: "/add-product" 
+      href: "/addProduct" 
     },
     { 
       title: "Low Stock", 
       value: products.lowStock, 
       icon: "exclamation-triangle", 
       color: "#FF9800",
-      href: "/low-stock" 
+      href: "/lowerStock" 
     },
     { 
       title: "Out of Stock", 
       value: products.outOfStock, 
       icon: "times-circle", 
       color: "#F44336",
-      href: "/out-of-stock" 
+      href: "/outOfStock" 
+    },
+    { 
+      title: "Current Dues", 
+      value: products.dues, 
+      icon: "exclamation-triangle", 
+      color: "#F44336",
+      href: "/duesScreen" 
     }
   ];
-
-  const MetricCard = ({ metric }) => (
-    <Link href={metric.href || "#"} asChild>
-      <TouchableOpacity style={styles.metricWrapper}>
-        <View style={[styles.metricCard, { backgroundColor: metric.color }]}>
-          {metric.icon && (
-            <FontAwesome5 
-              name={metric.icon} 
-              size={24} 
-              color="#FFF" 
-              style={styles.metricIcon} 
-            />
-          )}
-          <Text style={styles.metricValue}>{metric.value}</Text>
-          <Text style={styles.metricTitle}>{metric.title}</Text>
-        </View>
-      </TouchableOpacity>
-    </Link>
-  );
-
   return (
-    <View style={styles.safeContainer}>
+    <View  style={styles.safeContainer}>
       <Appbar.Header style={styles.appbar}>
         <Appbar.Content 
           title="Store Management" 
@@ -136,20 +127,39 @@ const HomeScreen = () => {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
+      
         <View style={styles.welcomeContainer}>
-          <Text style={styles.welcomeText}>Store Dashboard</Text>
+          <Text style={styles.welcomeText}>{user?.storeName}'s Dashboard</Text>
           <Text style={styles.subtitle}>Overview of your store performance</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.metricsContainer}>
           {clickableMetrics.map((metric, index) => (
-            <MetricCard key={`action-${index}`} metric={metric} />
+               <TouchableOpacity key={index +1}
+                      style={styles.metricWrapper}
+                      onPress={() => router.push(metric.href)}
+                    >
+                      <View style={[styles.metricCard, { backgroundColor: metric.color }]}>
+                        {metric.icon && (
+                          <FontAwesome5 
+                            name={metric.icon} 
+                            size={24} 
+                            color="#FFF" 
+                            style={styles.metricIcon} 
+                          />
+                        )}
+                        <Text style={styles.metricValue}>
+                          {metric.title === 'Current Dues' ? `৳ ${metric.value}` : metric.value}
+                        </Text>
+                        <Text style={styles.metricTitle}>{metric.title}</Text>
+                      </View>
+              </TouchableOpacity>
           ))}
         </View>
 
         <Text style={styles.sectionTitle}>Sales Performance</Text>
-        
+       
         <View style={styles.dropdownContainer}>
           <Menu
             visible={visible}
@@ -258,6 +268,7 @@ const styles = StyleSheet.create({
   metricWrapper: {
     width: '48%',
     marginBottom: 12,
+    zIndex: 100,
   },
   metricCard: {
     aspectRatio: 1.5,

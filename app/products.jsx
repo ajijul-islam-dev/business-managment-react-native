@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Modal, FlatList, TextInput as RNTextInput } from "react-native";
+import { View, StyleSheet, Dimensions, TouchableOpacity, Modal, FlatList, TextInput as RNTextInput, Keyboard,TouchableWithoutFeedback } from "react-native";
 import { Appbar, Card, Text, TextInput, Button, Menu, Divider, useTheme } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -19,19 +19,19 @@ const ProductsScreen = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   
   // Form states
-  const [buyQuantity, setBuyQuantity] = useState(1);
-  const [saleQuantity, setSaleQuantity] = useState(1);
-  const [salePrice, setSalePrice] = useState(0);
+  const [buyQuantity, setBuyQuantity] = useState("1");
+  const [saleQuantity, setSaleQuantity] = useState("1");
+  const [salePrice, setSalePrice] = useState("0");
   const [updatedProduct, setUpdatedProduct] = useState({
     name: '',
-    price: 0,
-    stock: 0,
+    price: '0',
+    stock: '0',
     packSize: '',
     unit: ''
   });
 
   // Static product data
-  const productsData = [
+  const [productsData, setProductsData] = useState([
     {
       id: 1,
       name: "Premium Coffee Beans",
@@ -64,7 +64,7 @@ const ProductsScreen = () => {
       packSize: "1L",
       unit: "bottle"
     }
-  ];
+  ]);
 
   const sortOptions = [
     { label: "Name (A-Z)", value: "name" },
@@ -97,24 +97,24 @@ const ProductsScreen = () => {
 
   // Calculate totals
   const calculateSaleTotal = () => {
-    return (saleQuantity * salePrice).toLocaleString('en-IN');
+    return (parseInt(saleQuantity) * parseInt(salePrice)) || 0;
   };
 
   const calculateBuyTotal = () => {
-    return (buyQuantity * (selectedProduct?.price || 0)).toLocaleString('en-IN');
+    return (parseInt(buyQuantity) * (selectedProduct?.price || 0)) || 0;
   };
 
   // Modal handlers
   const openBuyModal = (product) => {
     setSelectedProduct(product);
-    setBuyQuantity(1);
+    setBuyQuantity("1");
     setBuyModalVisible(true);
   };
 
   const openSaleModal = (product) => {
     setSelectedProduct(product);
-    setSaleQuantity(1);
-    setSalePrice(product.price);
+    setSaleQuantity("1");
+    setSalePrice(product.price.toString());
     setSaleModalVisible(true);
   };
 
@@ -122,8 +122,8 @@ const ProductsScreen = () => {
     setSelectedProduct(product);
     setUpdatedProduct({
       name: product.name,
-      price: product.price,
-      stock: product.stock,
+      price: product.price.toString(),
+      stock: product.stock.toString(),
       packSize: product.packSize,
       unit: product.unit
     });
@@ -132,18 +132,46 @@ const ProductsScreen = () => {
 
   // Submit handlers
   const handleBuySubmit = () => {
-    console.log(`Bought ${buyQuantity} of ${selectedProduct.name} for ${formatCurrency(calculateBuyTotal())}`);
+    // Update stock in productsData
+    const updatedProducts = productsData.map(p => 
+      p.id === selectedProduct.id 
+        ? {...p, stock: p.stock + parseInt(buyQuantity)} 
+        : p
+    );
+    setProductsData(updatedProducts);
     setBuyModalVisible(false);
+    Keyboard.dismiss();
   };
 
   const handleSaleSubmit = () => {
-    console.log(`Sold ${saleQuantity} of ${selectedProduct.name} for ${formatCurrency(calculateSaleTotal())}`);
+    // Update stock in productsData
+    const updatedProducts = productsData.map(p => 
+      p.id === selectedProduct.id 
+        ? {...p, stock: Math.max(0, p.stock - parseInt(saleQuantity))} 
+        : p
+    );
+    setProductsData(updatedProducts);
     setSaleModalVisible(false);
+    Keyboard.dismiss();
   };
 
   const handleEditSubmit = () => {
-    console.log('Updated product:', updatedProduct);
+    // Update product in productsData
+    const updatedProducts = productsData.map(p => 
+      p.id === selectedProduct.id 
+        ? {
+            ...p, 
+            name: updatedProduct.name,
+            price: parseInt(updatedProduct.price) || 0,
+            stock: parseInt(updatedProduct.stock) || 0,
+            packSize: updatedProduct.packSize,
+            unit: updatedProduct.unit
+          } 
+        : p
+    );
+    setProductsData(updatedProducts);
     setEditModalVisible(false);
+    Keyboard.dismiss();
   };
 
   // Render item with long press
@@ -169,13 +197,13 @@ const ProductsScreen = () => {
               onPress={() => openBuyModal(item)}
               style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
             >
-              <MaterialCommunityIcons name="cart-arrow-down" size={20} color="#FFF" />
+            <Text style={{color : "#fff", fontSize : 10}}>BUY</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => openSaleModal(item)}
               style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
             >
-              <MaterialCommunityIcons name="cart-arrow-up" size={20} color="#FFF" />
+             <Text style={{color : "#fff",fontSize : 10}}>SELL</Text>
             </TouchableOpacity>
           </View>
         </Card.Content>
@@ -184,278 +212,287 @@ const ProductsScreen = () => {
   );
 
   return (
-    <View style={styles.safeContainer}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Content 
-          title="All Products" 
-          titleStyle={styles.appbarTitle}
-        />
-      </Appbar.Header>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.safeContainer}>
+        <Appbar.Header style={styles.appbar}>
+          <Appbar.Content 
+            title="All Products" 
+            titleStyle={styles.appbarTitle}
+          />
+        </Appbar.Header>
 
-      {/* Fixed Search/Sort Header */}
-      <View style={styles.searchSortContainer}>
-        <TextInput
-          mode="outlined"
-          placeholder="Search products..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          style={[styles.searchInput, { flex: 3 }]}
-          left={<TextInput.Icon icon="magnify" />}
-          right={searchQuery && <TextInput.Icon icon="close" onPress={() => setSearchQuery("")} />}
-          outlineColor={theme.colors.outline}
-          activeOutlineColor={theme.colors.primary}
-        />
+        {/* Fixed Search/Sort Header */}
+        <View style={styles.searchSortContainer}>
+          <TextInput
+            mode="outlined"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={[styles.searchInput, { flex: 3 }]}
+            left={<TextInput.Icon icon="magnify" />}
+            right={searchQuery && <TextInput.Icon icon="close" onPress={() => setSearchQuery("")} />}
+            outlineColor={theme.colors.outline}
+            activeOutlineColor={theme.colors.primary}
+          />
 
-        <Menu
-          visible={sortVisible}
-          onDismiss={() => setSortVisible(false)}
-          anchor={
-            <Button
-              ref={menuAnchorRef}
-              onPress={() => setSortVisible(true)}
-              mode="outlined"
-              style={[styles.sortButton, { flex: 1 }]}
-              icon="sort"
-              contentStyle={{ flexDirection: "row-reverse" }}
-              textColor={theme.colors.primary}
-            >
-              Sort
-            </Button>
+          <Menu
+            visible={sortVisible}
+            onDismiss={() => setSortVisible(false)}
+            anchor={
+              <Button
+                ref={menuAnchorRef}
+                onPress={() => setSortVisible(true)}
+                mode="outlined"
+                style={[styles.sortButton, { flex: 1 }]}
+                icon="sort"
+                contentStyle={{ flexDirection: "row-reverse" }}
+                textColor={theme.colors.primary}
+              >
+                Sort
+              </Button>
+            }
+          >
+            {sortOptions.map((option, index) => (
+              <View key={option.value}>
+                <Menu.Item
+                  leadingIcon={sortOption === option.value ? "check" : null}
+                  onPress={() => {
+                    setSortOption(option.value);
+                    setSortVisible(false);
+                  }}
+                  title={option.label}
+                />
+                {index < sortOptions.length - 1 && <Divider />}
+            </View>
+            ))}
+          </Menu>
+        </View>
+
+        {/* Product List */}
+        <FlatList
+          data={filteredProducts}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="package-variant-remove" size={60} color="#888" />
+              <Text style={styles.emptyText}>
+                {searchQuery ? "No matching products found" : "No products available"}
+              </Text>
+            </View>
           }
-        >
-          {sortOptions.map((option, index) => (
-            <View key={option.value}>
-              <Menu.Item
-                leadingIcon={sortOption === option.value ? "check" : null}
-                onPress={() => {
-                  setSortOption(option.value);
-                  setSortVisible(false);
-                }}
-                title={option.label}
-              />
-              {index < sortOptions.length - 1 && <Divider />}
+        />
+
+        {/* Buy Modal */}
+        <Modal visible={buyModalVisible} transparent animationType="fade">
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+                <Text style={styles.modalTitle}>Purchase Product</Text>
+                <Text style={styles.modalSubtitle}>{selectedProduct?.name}</Text>
+                
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Quantity</Text>
+                  <View style={styles.quantityContainer}>
+                    <TouchableOpacity
+                      onPress={() => setBuyQuantity(Math.max(1, parseInt(buyQuantity) - 1).toString())}
+                      style={styles.quantityButton}
+                    >
+                      <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                    <RNTextInput
+                      style={styles.quantityInput}
+                      value={buyQuantity}
+                      onChangeText={(text) => setBuyQuantity(text.replace(/[^0-9]/g, '') || "1")}
+                      keyboardType="numeric"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setBuyQuantity((parseInt(buyQuantity) + 1).toString())}
+                      style={styles.quantityButton}
+                    >
+                      <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Unit Price</Text>
+                  <Text style={styles.priceText}>{formatCurrency(selectedProduct?.price)}</Text>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Total Purchase Value</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(calculateBuyTotal())}</Text>
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <Button 
+                    mode="outlined" 
+                    onPress={() => setBuyModalVisible(false)}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    onPress={handleBuySubmit}
+                    style={styles.submitButton}
+                    buttonColor="#FF9800"
+                  >
+                    Confirm Purchase
+                  </Button>
+                </View>
+              </View>
             </View>
-          ))}
-        </Menu>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+        {/* Sale Modal */}
+        <Modal visible={saleModalVisible} transparent animationType="fade">
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+                <Text style={styles.modalTitle}>Sell Product</Text>
+                <Text style={styles.modalSubtitle}>{selectedProduct?.name}</Text>
+                
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Quantity</Text>
+                  <View style={styles.quantityContainer}>
+                    <TouchableOpacity
+                      onPress={() => setSaleQuantity(Math.max(1, parseInt(saleQuantity) - 1).toString())}
+                      style={styles.quantityButton}
+                    >
+                      <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                    <RNTextInput
+                      style={styles.quantityInput}
+                      value={saleQuantity}
+                      onChangeText={(text) => setSaleQuantity(text.replace(/[^0-9]/g, '') || "1")}
+                      keyboardType="numeric"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setSaleQuantity((parseInt(saleQuantity) + 1).toString())}
+                      style={styles.quantityButton}
+                    >
+                      <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Sale Price (per unit)</Text>
+                  <TextInput
+                    mode="outlined"
+                    value={salePrice}
+                    onChangeText={(text) => setSalePrice(text.replace(/[^0-9]/g, '') || "0")}
+                    keyboardType="numeric"
+                    left={<TextInput.Affix text="৳" />}
+                    style={styles.priceInput}
+                  />
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Total Sale Value</Text>
+                  <Text style={[styles.totalValue, { color: '#4CAF50' }]}>{formatCurrency(calculateSaleTotal())}</Text>
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <Button 
+                    mode="outlined" 
+                    onPress={() => setSaleModalVisible(false)}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    onPress={handleSaleSubmit}
+                    style={styles.submitButton}
+                    buttonColor="#4CAF50"
+                  >
+                    Confirm Sale
+                  </Button>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+        {/* Edit Modal */}
+        <Modal visible={editModalVisible} transparent animationType="fade">
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+                <Text style={styles.modalTitle}>Edit Product</Text>
+                
+                <TextInput
+                  label="Product Name"
+                  value={updatedProduct.name}
+                  onChangeText={(text) => setUpdatedProduct({...updatedProduct, name: text})}
+                  mode="outlined"
+                  style={styles.editInput}
+                />
+                
+                <TextInput
+                  label="Price"
+                  value={updatedProduct.price}
+                  onChangeText={(text) => setUpdatedProduct({...updatedProduct, price: text.replace(/[^0-9]/g, '') || "0"})}
+                  mode="outlined"
+                  keyboardType="numeric"
+                  left={<TextInput.Affix text="৳" />}
+                  style={styles.editInput}
+                />
+                
+                <TextInput
+                  label="Stock Quantity"
+                  value={updatedProduct.stock}
+                  onChangeText={(text) => setUpdatedProduct({...updatedProduct, stock: text.replace(/[^0-9]/g, '') || "0"})}
+                  mode="outlined"
+                  keyboardType="numeric"
+                  style={styles.editInput}
+                />
+                
+                <View style={styles.rowInputs}>
+                  <TextInput
+                    label="Pack Size"
+                    value={updatedProduct.packSize}
+                    onChangeText={(text) => setUpdatedProduct({...updatedProduct, packSize: text})}
+                    mode="outlined"
+                    style={[styles.editInput, { flex: 1, marginRight: 8 }]}
+                  />
+                  <TextInput
+                    label="Unit"
+                    value={updatedProduct.unit}
+                    onChangeText={(text) => setUpdatedProduct({...updatedProduct, unit: text})}
+                    mode="outlined"
+                    style={[styles.editInput, { flex: 1 }]}
+                  />
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <Button 
+                    mode="outlined" 
+                    onPress={() => setEditModalVisible(false)}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    mode="contained" 
+                    onPress={handleEditSubmit}
+                    style={styles.submitButton}
+                  >
+                    Save Changes
+                  </Button>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
       </View>
-
-      {/* Product List */}
-      <FlatList
-        data={filteredProducts}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="package-variant-remove" size={60} color="#888" />
-            <Text style={styles.emptyText}>
-              {searchQuery ? "No matching products found" : "No products available"}
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Buy Modal */}
-      <Modal visible={buyModalVisible} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-            <Text style={styles.modalTitle}>Purchase Product</Text>
-            <Text style={styles.modalSubtitle}>{selectedProduct?.name}</Text>
-            
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Quantity</Text>
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  onPress={() => setBuyQuantity(Math.max(1, buyQuantity - 1))}
-                  style={styles.quantityButton}
-                >
-                  <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
-                </TouchableOpacity>
-                <RNTextInput
-                  style={styles.quantityInput}
-                  value={buyQuantity.toString()}
-                  onChangeText={(text) => setBuyQuantity(Math.max(1, parseInt(text) || 1))}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity
-                  onPress={() => setBuyQuantity(buyQuantity + 1)}
-                  style={styles.quantityButton}
-                >
-                  <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Unit Price</Text>
-              <Text style={styles.priceText}>{formatCurrency(selectedProduct?.price)}</Text>
-            </View>
-
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Total Purchase Value</Text>
-              <Text style={styles.totalValue}>{formatCurrency(calculateBuyTotal())}</Text>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <Button 
-                mode="outlined" 
-                onPress={() => setBuyModalVisible(false)}
-                style={styles.cancelButton}
-              >
-                Cancel
-              </Button>
-              <Button 
-                mode="contained" 
-                onPress={handleBuySubmit}
-                style={styles.submitButton}
-                buttonColor="#FF9800"
-              >
-                Confirm Purchase
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sale Modal */}
-      <Modal visible={saleModalVisible} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-            <Text style={styles.modalTitle}>Sell Product</Text>
-            <Text style={styles.modalSubtitle}>{selectedProduct?.name}</Text>
-            
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Quantity</Text>
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  onPress={() => setSaleQuantity(Math.max(1, saleQuantity - 1))}
-                  style={styles.quantityButton}
-                >
-                  <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
-                </TouchableOpacity>
-                <RNTextInput
-                  style={styles.quantityInput}
-                  value={saleQuantity.toString()}
-                  onChangeText={(text) => setSaleQuantity(Math.max(1, parseInt(text) || 1))}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity
-                  onPress={() => setSaleQuantity(saleQuantity + 1)}
-                  style={styles.quantityButton}
-                >
-                  <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Sale Price (per unit)</Text>
-              <TextInput
-                mode="outlined"
-                value={salePrice.toString()}
-                onChangeText={(text) => setSalePrice(parseInt(text) || 0)}
-                keyboardType="numeric"
-                left={<TextInput.Affix text="৳" />}
-                style={styles.priceInput}
-              />
-            </View>
-
-            <View style={styles.modalSection}>
-              <Text style={styles.modalLabel}>Total Sale Value</Text>
-              <Text style={[styles.totalValue, { color: '#4CAF50' }]}>{formatCurrency(calculateSaleTotal())}</Text>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <Button 
-                mode="outlined" 
-                onPress={() => setSaleModalVisible(false)}
-                style={styles.cancelButton}
-              >
-                Cancel
-              </Button>
-              <Button 
-                mode="contained" 
-                onPress={handleSaleSubmit}
-                style={styles.submitButton}
-                buttonColor="#4CAF50"
-              >
-                Confirm Sale
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal visible={editModalVisible} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-            <Text style={styles.modalTitle}>Edit Product</Text>
-            
-            <TextInput
-              label="Product Name"
-              value={updatedProduct.name}
-              onChangeText={(text) => setUpdatedProduct({...updatedProduct, name: text})}
-              mode="outlined"
-              style={styles.editInput}
-            />
-            
-            <TextInput
-              label="Price"
-              value={updatedProduct.price.toString()}
-              onChangeText={(text) => setUpdatedProduct({...updatedProduct, price: parseInt(text) || 0})}
-              mode="outlined"
-              keyboardType="numeric"
-              left={<TextInput.Affix text="৳" />}
-              style={styles.editInput}
-            />
-            
-            <TextInput
-              label="Stock Quantity"
-              value={updatedProduct.stock.toString()}
-              onChangeText={(text) => setUpdatedProduct({...updatedProduct, stock: parseInt(text) || 0})}
-              mode="outlined"
-              keyboardType="numeric"
-              style={styles.editInput}
-            />
-            
-            <View style={styles.rowInputs}>
-              <TextInput
-                label="Pack Size"
-                value={updatedProduct.packSize}
-                onChangeText={(text) => setUpdatedProduct({...updatedProduct, packSize: text})}
-                mode="outlined"
-                style={[styles.editInput, { flex: 1, marginRight: 8 }]}
-              />
-              <TextInput
-                label="Unit"
-                value={updatedProduct.unit}
-                onChangeText={(text) => setUpdatedProduct({...updatedProduct, unit: text})}
-                mode="outlined"
-                style={[styles.editInput, { flex: 1 }]}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <Button 
-                mode="outlined" 
-                onPress={() => setEditModalVisible(false)}
-                style={styles.cancelButton}
-              >
-                Cancel
-              </Button>
-              <Button 
-                mode="contained" 
-                onPress={handleEditSubmit}
-                style={styles.submitButton}
-              >
-                Save Changes
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -465,7 +502,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
   },
   appbar: {
-    
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -487,7 +523,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#EEE",
     zIndex: 1,
-    gap : 5
+    gap: 5
   },
   searchInput: {
     height: 48,
