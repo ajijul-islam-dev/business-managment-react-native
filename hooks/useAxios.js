@@ -15,7 +15,7 @@ const useAxios = () => {
   axiosSecure.interceptors.request.use(async (config) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      alert(token)
+     
       if (token) {
         config.headers.token = token;  // Keeping your original header name
       }

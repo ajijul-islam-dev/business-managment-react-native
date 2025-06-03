@@ -1,86 +1,117 @@
-import { useState,useContext } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from "react-native";
-import { Appbar, Card, Text, useTheme, Menu, Divider } from "react-native-paper";
-import { Link,useRouter } from "expo-router";
+import React, { useState, useContext, useEffect, useCallback } from 'react';
+import { 
+  View, 
+  StyleSheet, 
+  ScrollView, 
+  Dimensions, 
+  TouchableOpacity, 
+  RefreshControl
+} from "react-native";
+import { 
+  Appbar, 
+  Card, 
+  Text, 
+  useTheme, 
+  Menu, 
+  Divider, 
+  Button,
+  Portal,
+  ActivityIndicator
+} from "react-native-paper";
 import { FontAwesome5 } from "@expo/vector-icons";
-import {AuthContext} from '../../providers/AuthProvider.jsx';
+import { useRouter } from "expo-router";
+import { DatePickerModal,enGB, registerTranslation } from 'react-native-paper-dates';
+import { ProductContext } from '../../providers/ProductProvider.jsx';
 
 const { width } = Dimensions.get('window');
-
+registerTranslation('en-GB', enGB);
 const HomeScreen = () => {
-  
   const theme = useTheme();
+  const router = useRouter();
+  const { dashboardMetrics, fetchDashboardMetrics } = useContext(ProductContext);
+  
+  // State variables
   const [visible, setVisible] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState("Today");
-  const router = useRouter()
-  // Static metrics data
-  const metricsData = {
-    today: {
-      revenue: '৳25,420',
-      cost: '৳18,760',
-      sales: 142
-    },
-    thisWeek: {
-      revenue: '৳1,78,540',
-      cost: '৳1,31,320',
-      sales: 892
-    },
-    lastWeek: {
-      revenue: '৳1,52,310',
-      cost: '৳1,12,540',
-      sales: 762
-    },
-    thisMonth: {
-      revenue: '৳6,42,850',
-      cost: '৳4,85,210',
-      sales: 3214
-    },
-    last3Month: {
-      revenue: '৳18,52,640',
-      cost: '৳13,85,420',
-      sales: 9248
-    },
-    last6Month: {
-      revenue: '৳36,42,150',
-      cost: '৳27,85,320',
-      sales: 18462
-    },
-    thisYear: {
-      revenue: '৳78,42,150',
-      cost: '৳58,14,320',
-      sales: 39842
-    },
-    allTime: {
-      revenue: '৳2,45,78,420',
-      cost: '৳1,82,45,760',
-      sales: 128642
-    }
-  };
+  const [refreshing, setRefreshing] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState("week");
+  const [selectedPeriodLabel, setSelectedPeriodLabel] = useState("Today");
+  const [range, setRange] = useState({
+    startDate: new Date(),
+    endDate: new Date()
+  });
 
-  const {user} = useContext(AuthContext)
+  // Time period options
   const timePeriods = [
     { label: "Today", value: "today" },
-    { label: "This Week", value: "thisWeek" },
-    { label: "Last Week", value: "lastWeek" },
-    { label: "This Month", value: "thisMonth" },
-    { label: "Last 3 Month", value: "last3Month" },
-    { label: "Last 6 Month", value: "last6Month" },
-    { label: "This Year", value: "thisYear" },
-    { label: "All Time", value: "allTime" }
+    { label: "This Week", value: "week" },
+    { label: "This Month", value: "month" },
+    { label: "This Year", value: "year" },
+    { label: "Custom", value: "custom" },
+    { label: "All Time", value: "all" },
   ];
 
-  const products = {
-    total: 1248,
-    lowStock: 42,
-    outOfStock: 12,
-    dues : 3500
+  // Fetch data on initial load
+  useEffect(() => {
+    fetchDashboardMetrics(selectedPeriod,range);
+    
+  }, []);
+
+  // Handle refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchDashboardMetrics(selectedPeriod,range).finally(() => setRefreshing(false));
+    
+  }, [fetchDashboardMetrics]);
+
+  // Handle period change
+  const handlePeriodChange = (period) => {
+    setSelectedPeriod(period.value);
+    setSelectedPeriodLabel(period.label);
+    
+    if (period.value === 'custom') {
+      setDatePickerVisible(true);
+    } else {
+      fetchDashboardMetrics(period.value,range);
+    }
+    
+    setVisible(false);
   };
 
-  // Clickable metrics
+  // Handle date picker dismiss
+  const onDismiss = useCallback(() => {
+    setDatePickerVisible(false);
+  }, []);
+
+  // Handle date confirmation
+  const onConfirm = useCallback(({ startDate, endDate }) => {
+    
+  setDatePickerVisible(false);
+  setRange({ startDate, endDate });
+  
+  // Ensure dates are valid before sending
+  if (startDate && endDate) {
+    fetchDashboardMetrics('custom', {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    });
+  } else {
+    console.error('Invalid dates selected');
+  }
+}, [fetchDashboardMetrics]);
+
+  // Format metric values with loading state
+  const formatMetricValue = (value) => {
+    if (dashboardMetrics.loading) return '--';
+    if (typeof value === 'number') return value.toLocaleString();
+    return value || '--';
+  };
+
+  // Quick action metrics
   const clickableMetrics = [
     { 
       title: "All Products", 
-      value: products.total, 
+      value: formatMetricValue(dashboardMetrics.inventory?.total), 
       icon: "boxes", 
       color: "#4CAF50",
       href: "/products" 
@@ -94,28 +125,36 @@ const HomeScreen = () => {
     },
     { 
       title: "Low Stock", 
-      value: products.lowStock, 
+      value: formatMetricValue(dashboardMetrics.inventory?.lowStock), 
       icon: "exclamation-triangle", 
       color: "#FF9800",
       href: "/lowerStock" 
     },
     { 
       title: "Out of Stock", 
-      value: products.outOfStock, 
+      value: formatMetricValue(dashboardMetrics.inventory?.outOfStock), 
       icon: "times-circle", 
       color: "#F44336",
       href: "/outOfStock" 
     },
     { 
       title: "Current Dues", 
-      value: products.dues, 
+      value: "3500", 
       icon: "exclamation-triangle", 
       color: "#F44336",
       href: "/duesScreen" 
-    }
+    },
+    { 
+      title: "Current Stock Value", 
+      value:formatMetricValue(dashboardMetrics.inventory?.stockValue), 
+      icon: "boxes", 
+      color: "#2196F3",
+      href: "" 
+    },
   ];
+
   return (
-    <View  style={styles.safeContainer}>
+    <View style={styles.safeContainer}>
       <Appbar.Header style={styles.appbar}>
         <Appbar.Content 
           title="Store Management" 
@@ -126,40 +165,50 @@ const HomeScreen = () => {
       <ScrollView 
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
-      
+        {/* Welcome Header */}
         <View style={styles.welcomeContainer}>
-          <Text style={styles.welcomeText}>{user?.storeName}'s Dashboard</Text>
+          <Text style={styles.welcomeText}>Dashboard</Text>
           <Text style={styles.subtitle}>Overview of your store performance</Text>
         </View>
 
+        {/* Quick Actions Section */}
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.metricsContainer}>
           {clickableMetrics.map((metric, index) => (
-               <TouchableOpacity key={index +1}
-                      style={styles.metricWrapper}
-                      onPress={() => router.push(metric.href)}
-                    >
-                      <View style={[styles.metricCard, { backgroundColor: metric.color }]}>
-                        {metric.icon && (
-                          <FontAwesome5 
-                            name={metric.icon} 
-                            size={24} 
-                            color="#FFF" 
-                            style={styles.metricIcon} 
-                          />
-                        )}
-                        <Text style={styles.metricValue}>
-                          {metric.title === 'Current Dues' ? `৳ ${metric.value}` : metric.value}
-                        </Text>
-                        <Text style={styles.metricTitle}>{metric.title}</Text>
-                      </View>
-              </TouchableOpacity>
+            <TouchableOpacity 
+              key={index}
+              style={styles.metricWrapper}
+              onPress={() => router.push(metric.href)}
+            >
+              <View style={[styles.metricCard, { backgroundColor: metric.color }]}>
+                <FontAwesome5 
+                  name={metric.icon} 
+                  size={24} 
+                  color="#FFF" 
+                  style={styles.metricIcon} 
+                />
+                <Text style={styles.metricValue}>
+                  {metric.title === 'Current Dues' || metric.title === 'Current Stock Value' ? `৳${metric.value}` : metric.value}
+                </Text>
+                <Text style={styles.metricTitle}>{metric.title}</Text>
+              </View>
+            </TouchableOpacity>
           ))}
         </View>
 
+        {/* Sales Performance Section */}
         <Text style={styles.sectionTitle}>Sales Performance</Text>
        
+        {/* Period Selection Dropdown */}
         <View style={styles.dropdownContainer}>
           <Menu
             visible={visible}
@@ -169,7 +218,7 @@ const HomeScreen = () => {
                 style={styles.dropdownButton}
                 onPress={() => setVisible(true)}
               >
-                <Text style={styles.dropdownButtonText}>{selectedPeriod}</Text>
+                <Text style={styles.dropdownButtonText}>{selectedPeriodLabel}</Text>
                 <FontAwesome5 name="chevron-down" size={16} color="#666" />
               </TouchableOpacity>
             }
@@ -178,10 +227,7 @@ const HomeScreen = () => {
               <View key={period.value}>
                 <Menu.Item
                   title={period.label}
-                  onPress={() => {
-                    setSelectedPeriod(period.label);
-                    setVisible(false);
-                  }}
+                  onPress={() => handlePeriodChange(period)}
                 />
                 {index < timePeriods.length - 1 && <Divider />}
               </View>
@@ -189,35 +235,75 @@ const HomeScreen = () => {
           </Menu>
         </View>
 
+        {/* Selected Date Range Display */}
+        {selectedPeriod === 'Custom' && (
+          <Text style={styles.dateRangeText}>
+            {range.startDate.toLocaleDateString()} - {range.endDate.toLocaleDateString()}
+          </Text>
+        )}
+
+        {/* Sales Metrics Card */}
         <Card style={styles.salesCard}>
           <Card.Content>
             <View style={styles.salesHeader}>
-              <Text style={[styles.salesHeaderText, { flex: 2 }]}>Metric</Text>
+              <Text style={[styles.salesHeaderText, { flex: 0 }]}>Metric</Text>
               <Text style={styles.salesHeaderText}>Value</Text>
             </View>
             <Divider style={styles.divider} />
             <View style={styles.timeMetricRow}>
               <Text style={styles.timePeriod}>Revenue</Text>
               <Text style={styles.timeMetricValue}>
-                {metricsData[timePeriods.find(p => p.label === selectedPeriod)?.value]?.revenue || '--'}
+                ৳{formatMetricValue(dashboardMetrics.sales?.revenue)}
+              </Text>
+            </View>
+            <Divider style={styles.divider} />
+            <View style={styles.timeMetricRow}>
+              <Text style={styles.timePeriod}>Purchased Amount</Text>
+              <Text style={styles.timeMetricValue}>
+                ৳{formatMetricValue(dashboardMetrics?.purchased)}
               </Text>
             </View>
             <Divider style={styles.divider} />
             <View style={styles.timeMetricRow}>
               <Text style={styles.timePeriod}>Cost</Text>
               <Text style={styles.timeMetricValue}>
-                {metricsData[timePeriods.find(p => p.label === selectedPeriod)?.value]?.cost || '--'}
+                ৳{formatMetricValue(dashboardMetrics.cost)}
+              </Text>
+            </View>
+            <Divider style={styles.divider} />
+            <View style={styles.timeMetricRow}>
+              <Text style={styles.timePeriod}>Profit</Text>
+              <Text style={styles.timeMetricValue}>
+                ৳{formatMetricValue(dashboardMetrics.sales?.revenue - dashboardMetrics.cost)}
               </Text>
             </View>
             <Divider style={styles.divider} />
             <View style={[styles.timeMetricRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.timePeriod}>Sales</Text>
+              <Text style={styles.timePeriod}>Items Sold</Text>
               <Text style={styles.timeMetricValue}>
-                {metricsData[timePeriods.find(p => p.label === selectedPeriod)?.value]?.sales?.toLocaleString() || '--'}
+                {formatMetricValue(dashboardMetrics.sales?.itemsSold)}
               </Text>
             </View>
           </Card.Content>
         </Card>
+
+        {/* Date Picker Portal */}
+        <Portal>
+          <DatePickerModal
+            locale="en-GB"
+            mode="range"
+            visible={datePickerVisible}
+            onDismiss={onDismiss}
+            startDate={range.startDate}
+            endDate={range.endDate}
+            onConfirm={onConfirm}
+            label="Select date range"
+            startLabel="From"
+            endLabel="To"
+            animationType="slide"
+            theme={theme}
+          />
+        </Portal>
       </ScrollView>
     </View>
   );
@@ -259,6 +345,13 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 4,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 16,
+    marginTop: 8,
+  },
   metricsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -268,7 +361,6 @@ const styles = StyleSheet.create({
   metricWrapper: {
     width: '48%',
     marginBottom: 12,
-    zIndex: 100,
   },
   metricCard: {
     aspectRatio: 1.5,
@@ -293,13 +385,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     textAlign: 'center',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 16,
-    marginTop: 8,
-  },
   dropdownContainer: {
     marginBottom: 16,
     alignItems: 'flex-start',
@@ -318,6 +403,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     marginRight: 8,
+  },
+  dateRangeText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
   },
   salesCard: {
     borderRadius: 12,
@@ -348,8 +439,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   salesHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#666',
     flex: 1,
     textAlign: 'right',

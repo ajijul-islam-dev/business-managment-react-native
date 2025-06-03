@@ -6,26 +6,29 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Appbar,
   TextInput,
   Button,
   Text,
-  useTheme,
   HelperText,
   Card,
-  Checkbox,
-  List,
+  Menu,
+  Divider,
+  ActivityIndicator,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { ProductContext } from '../providers/ProductProvider';
+import { AuthContext } from '../providers/AuthProvider.jsx';
+import { FontAwesome5 } from '@expo/vector-icons';
 
 const AddProductScreen = () => {
   const navigation = useNavigation();
-  const theme = useTheme();
   const { createProduct } = useContext(ProductContext);
-
+  const { user } = useContext(AuthContext);
+  
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -35,7 +38,8 @@ const AddProductScreen = () => {
   });
 
   const [errors, setErrors] = useState({});
-  const [showUnitOptions, setShowUnitOptions] = useState(false);
+  const [unitMenuVisible, setUnitMenuVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const units = [
     { label: 'Piece (pcs)', value: 'pcs' },
@@ -67,17 +71,21 @@ const AddProductScreen = () => {
 
   const handleSubmit = async () => {
     if (validateForm()) {
+      setIsSubmitting(true);
       try {
         await createProduct({
           name: formData.name,
           price: parseFloat(formData.price),
           stock: parseInt(formData.stock),
           packSize: formData.packSize,
-          unit: formData.unit
+          unit: formData.unit,
+          createdBy: user._id
         });
-        navigation.navigate('products')
+        navigation.navigate('products');
       } catch (error) {
         // Error handling is done in the ProductProvider
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -91,29 +99,27 @@ const AddProductScreen = () => {
 
   const handleUnitSelect = (unitValue) => {
     handleChange('unit', unitValue);
-    setShowUnitOptions(false);
+    setUnitMenuVisible(false);
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-      <Appbar.Header style={{ backgroundColor: '#fff' }} elevated>
+    <View style={styles.container}>
+      <Appbar.Header style={styles.header}>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title="Add New Product" titleStyle={{ fontWeight: 'bold' }} />
+        <Appbar.Content title="Add New Product" />
       </Appbar.Header>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <Card mode="elevated" style={[styles.card, { backgroundColor: '#fff' }]}>
+          <Card style={styles.card}>
             <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Product Information
-              </Text>
+              <Text style={styles.sectionTitle}>Product Information</Text>
               
               <TextInput
                 label="Product Name"
@@ -122,53 +128,41 @@ const AddProductScreen = () => {
                 mode="outlined"
                 style={styles.input}
                 error={!!errors.name}
-                left={<TextInput.Icon icon="rename-box" />}
-                outlineColor="#ddd"
-                activeOutlineColor="#4a90e2"
+                left={<TextInput.Icon icon="tag" />}
               />
-              <HelperText type="error" visible={!!errors.name} style={styles.helperText}>
+              <HelperText type="error" visible={!!errors.name}>
                 {errors.name}
               </HelperText>
 
               <TextInput
                 label="Price (৳)"
                 value={formData.price}
-                onChangeText={(text) =>
-                  handleChange('price', text.replace(/[^0-9.]/g, ''))
-                }
+                onChangeText={(text) => handleChange('price', text.replace(/[^0-9.]/g, ''))}
                 mode="outlined"
                 keyboardType="numeric"
                 style={styles.input}
                 error={!!errors.price}
                 left={<TextInput.Icon icon="currency-bdt" />}
-                outlineColor="#ddd"
-                activeOutlineColor="#4a90e2"
               />
-              <HelperText type="error" visible={!!errors.price} style={styles.helperText}>
+              <HelperText type="error" visible={!!errors.price}>
                 {errors.price}
               </HelperText>
 
               <TextInput
                 label="Initial Stock"
                 value={formData.stock}
-                onChangeText={(text) =>
-                  handleChange('stock', text.replace(/[^0-9]/g, ''))
-                }
+                onChangeText={(text) => handleChange('stock', text.replace(/[^0-9]/g, ''))}
                 mode="outlined"
                 keyboardType="numeric"
                 style={styles.input}
                 error={!!errors.stock}
                 left={<TextInput.Icon icon="package-variant" />}
-                outlineColor="#ddd"
-                activeOutlineColor="#4a90e2"
               />
-              <HelperText type="error" visible={!!errors.stock} style={styles.helperText}>
+              <HelperText type="error" visible={!!errors.stock}>
                 {errors.stock}
               </HelperText>
 
-              <Text variant="titleMedium" style={[styles.sectionTitle, { marginTop: 12 }]}>
-                Packaging Details
-              </Text>
+              <Text style={styles.sectionTitle}>Packaging Details</Text>
 
               <TextInput
                 label="Pack Size"
@@ -177,54 +171,58 @@ const AddProductScreen = () => {
                 mode="outlined"
                 style={styles.input}
                 error={!!errors.packSize}
-                outlineColor="#ddd"
-                activeOutlineColor="#4a90e2"
               />
-              <HelperText type="error" visible={!!errors.packSize} style={styles.helperText}>
+              <HelperText type="error" visible={!!errors.packSize}>
                 {errors.packSize}
               </HelperText>
 
-              <TouchableWithoutFeedback onPress={() => setShowUnitOptions(!showUnitOptions)}>
-                <View style={[styles.input, styles.unitSelector, errors.unit ? { borderColor: theme.colors.error } : null]}>
-                  <Text style={{ color: formData.unit ? '#000' : '#757575' }}>
-                    {formData.unit ? units.find(u => u.value === formData.unit).label : 'Select Unit'}
-                  </Text>
-                </View>
-              </TouchableWithoutFeedback>
-              <HelperText type="error" visible={!!errors.unit} style={styles.helperText}>
-                {errors.unit}
-              </HelperText>
-
-              {showUnitOptions && (
-                <Card style={styles.unitOptionsCard}>
-                  <Card.Content>
-                    {units.map((unit) => (
-                      <List.Item
-                        key={unit.value}
-                        title={unit.label}
-                        left={() => (
-                          <Checkbox
-                            status={formData.unit === unit.value ? 'checked' : 'unchecked'}
-                            onPress={() => handleUnitSelect(unit.value)}
-                          />
-                        )}
-                        onPress={() => handleUnitSelect(unit.value)}
-                        style={styles.unitOption}
-                      />
+              {/* Unit Selection Dropdown - Matching HomeScreen style */}
+              <View style={styles.dropdownContainer}>
+                <Text style={styles.dropdownLabel}>Unit</Text>
+                <Menu
+                  visible={unitMenuVisible}
+                  onDismiss={() => setUnitMenuVisible(false)}
+                  anchor={
+                    <TouchableOpacity 
+                      style={[styles.dropdownButton, errors.unit ? styles.dropdownError : null]}
+                      onPress={() => setUnitMenuVisible(true)}
+                    >
+                      <Text style={styles.dropdownButtonText}>
+                        {formData.unit ? units.find(u => u.value === formData.unit).label : 'Select Unit'}
+                      </Text>
+                      <FontAwesome5 name="chevron-down" size={14} color="#666" />
+                    </TouchableOpacity>
+                  }
+                >
+                  <ScrollView style={{ maxHeight: 200 }}>
+                    {units.map((unit, index) => (
+                      <View key={unit.value}>
+                        <Menu.Item
+                          title={unit.label}
+                          onPress={() => handleUnitSelect(unit.value)}
+                        />
+                        {index < units.length - 1 && <Divider />}
+                      </View>
                     ))}
-                  </Card.Content>
-                </Card>
-              )}
+                  </ScrollView>
+                </Menu>
+                <HelperText type="error" visible={!!errors.unit}>
+                  {errors.unit}
+                </HelperText>
+              </View>
 
               <Button
                 mode="contained"
                 onPress={handleSubmit}
-                style={[styles.submitButton, { backgroundColor: '#4a90e2' }]}
-                icon="check"
+                style={styles.submitButton}
                 contentStyle={styles.buttonContent}
-                labelStyle={{ color: '#fff' }}
+                disabled={isSubmitting}
               >
-                Add Product
+                {isSubmitting ? (
+                  <ActivityIndicator animating={true} color="#fff" />
+                ) : (
+                  'Add Product'
+                )}
               </Button>
             </Card.Content>
           </Card>
@@ -235,50 +233,71 @@ const AddProductScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    backgroundColor: '#fff',
+    elevation: 1,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   scrollContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   card: {
-    borderRadius: 12,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  input: {
-    marginBottom: 8,
     backgroundColor: '#fff',
     borderRadius: 8,
-    height: 56,
+    elevation: 1,
   },
-  unitSelector: {
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  unitOptionsCard: {
-    marginBottom: 8,
+  input: {
     backgroundColor: '#fff',
+    marginBottom: 4,
   },
-  unitOption: {
-    paddingVertical: 8,
-    height: 48,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    marginTop: 8,
+    color: '#333',
+  },
+  dropdownContainer: {
+    marginBottom: 12,
+  },
+  dropdownLabel: {
+    fontSize: 12,
+    color: 'rgba(0, 0, 0, 0.6)',
+    marginBottom: 4,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    backgroundColor: '#FFF',
+    minHeight: 56,
+  },
+  dropdownError: {
+    borderColor: '#f44336',
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#333',
   },
   submitButton: {
     marginTop: 16,
-    borderRadius: 8,
-    elevation: 2,
+    backgroundColor: '#4a90e2',
+    borderRadius: 4,
   },
   buttonContent: {
     height: 48,
-  },
-  sectionTitle: {
-    marginBottom: 12,
-    color: '#555',
-    fontWeight: '600',
-  },
-  helperText: {
-    marginBottom: 4,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext, useCallback, useMemo } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -10,14 +10,39 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Modal,
-  Dimensions
+  Dimensions,
+  Alert
 } from 'react-native';
-import { Appbar, Text, TextInput, Button, Menu, Divider, Card, useTheme, Badge } from 'react-native-paper';
+import { 
+  Appbar, 
+  Text, 
+  TextInput, 
+  Button, 
+  Menu, 
+  Divider, 
+  Card, 
+  useTheme, 
+  Badge,
+  ActivityIndicator,
+  IconButton
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { CustomerContext } from '../../providers/CustomerProvider';
 
 const DuesScreen = () => {
   const theme = useTheme();
+  const router = useRouter();
+  const {
+    customers,
+    loading,
+    error,
+    createCustomer,
+    refreshCustomers,
+    addDue
+  } = useContext(CustomerContext);
+
+  // UI states
   const [searchQuery, setSearchQuery] = useState("");
   const [sortVisible, setSortVisible] = useState(false);
   const [sortOption, setSortOption] = useState("name");
@@ -26,112 +51,112 @@ const DuesScreen = () => {
     name: "",
     phone: "",
     address: "",
+    notes: "",
     initialAmount: ""
   });
+  console.log(newDue);
+  const [createLoading, setCreateLoading] = useState(false);
   const menuAnchorRef = useRef(null);
-  const router = useRouter();
 
-  // Static dues data
-  const [duesData, setDuesData] = useState([
-    {
-      id: 1,
-      name: "Mohammad Ali",
-      address: "123 Market Street, Dhaka",
-      dueValue: 12500,
-      phone: "01712345678",
-      lastPayment: "15 days ago"
-    },
-    {
-      id: 2,
-      name: "Abdul Rahman",
-      address: "456 Business Road, Chittagong",
-      dueValue: 8500,
-      phone: "01898765432",
-      lastPayment: "7 days ago"
-    },
-    {
-      id: 3,
-      name: "Fatima Begum",
-      address: "789 Trade Center, Sylhet",
-      dueValue: 15600,
-      phone: "01911223344",
-      lastPayment: "30 days ago"
-    },
-    {
-      id: 4,
-      name: "Kamal Hossain",
-      address: "321 Shopnagar, Khulna",
-      dueValue: 6200,
-      phone: "01655667788",
-      lastPayment: "3 days ago"
-    },
-    {
-      id: 5,
-      name: "Ayesha Akter",
-      address: "654 Commerce Lane, Rajshahi",
-      dueValue: 13400,
-      phone: "01599887766",
-      lastPayment: "21 days ago"
-    }
-  ]);
+  // Calculate totals
+  const { totalCustomers, totalDue, totalPaid } = useMemo(() => {
+    return {
+      totalCustomers: customers.length,
+      totalDue: customers.reduce((sum, c) => sum + (c.dueValue || 0), 0),
+      totalPaid: customers.reduce((sum, c) => sum + (c.totalPaid || 0), 0)
+    };
+  }, [customers]);
 
-  const sortOptions = [
+  // Filter and sort customers
+  const filteredCustomers = useMemo(() => {
+    return customers
+      .filter(customer => 
+        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.phone.includes(searchQuery)
+      )
+      .sort((a, b) => {
+        switch(sortOption) {
+          case 'name': return a.name.localeCompare(b.name);
+          case 'amountAsc': return a.dueValue - b.dueValue;
+          case 'amountDesc': return b.dueValue - a.dueValue;
+          case 'recent': 
+            const aDays = parseInt(a.lastPayment?.split(' ')[0]) || Infinity;
+            const bDays = parseInt(b.lastPayment?.split(' ')[0]) || Infinity;
+            return aDays - bDays;
+          default: return 0;
+        }
+      });
+  }, [customers, searchQuery, sortOption]);
+
+  const sortOptions = useMemo(() => [
     { label: "Name (A-Z)", value: "name" },
     { label: "Due Amount (Low-High)", value: "amountAsc" },
     { label: "Due Amount (High-Low)", value: "amountDesc" },
     { label: "Recent Payment", value: "recent" }
-  ];
-
-  // Filter and sort dues - CORRECTED VERSION
-  const filteredDues = duesData
-    .filter(due => 
-      due.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      due.phone.includes(searchQuery)
-    )
-    .sort((a, b) => {
-      switch(sortOption) {
-        case 'name': return a.name.localeCompare(b.name);
-        case 'amountAsc': return a.dueValue - b.dueValue;
-        case 'amountDesc': return b.dueValue - a.dueValue;
-        case 'recent': return a.lastPayment.localeCompare(b.lastPayment);
-        default: return 0;
-      }
-    });
+  ], []);
 
   // Format currency
-  const formatCurrency = (amount) => {
+  const formatCurrency = useCallback((amount) => {
     return `৳${amount?.toLocaleString('en-IN') || '0'}`;
+  }, []);
+
+  const handleAddDue = async () => {
+    try {
+      setCreateLoading(true);
+      if (!newDue.name || !newDue.phone || !newDue.initialAmount) {
+        throw new Error('Please fill all required fields');
+      }
+
+      const customerData = {
+        name: newDue.name,
+        phone: newDue.phone,
+        address: newDue.address,
+        initialAmount: newDue.initialAmount,
+        notes: newDue.notes
+      };
+
+      const createdCustomer = await createCustomer(customerData);
+      
+      if (parseInt(newDue.initialAmount) > 0) {
+        await addDue(createdCustomer._id, {
+          amount: parseInt(newDue.initialAmount),
+          note: 'Initial due amount'
+        });
+      }
+
+      setAddDueModalVisible(false);
+      setNewDue({
+        name: "",
+        phone: "",
+        address: "",
+        notes: "",
+        initialAmount: ""
+      });
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
-  const handleAddDue = () => {
-    if (!newDue.name || !newDue.phone || !newDue.initialAmount) return;
+  const handleCallCustomer = useCallback((phone) => {
+    Alert.alert('Call', `Would you like to call ${phone}?`);
+  }, []);
 
-    const newDueEntry = {
-      id: duesData.length + 1,
-      name: newDue.name,
-      phone: newDue.phone,
-      address: newDue.address,
-      dueValue: parseInt(newDue.initialAmount),
-      lastPayment: "Not paid yet"
-    };
+  const handleMessageCustomer = useCallback((phone) => {
+    Alert.alert('Message', `Would you like to message ${phone}?`);
+  }, []);
 
-    setDuesData([...duesData, newDueEntry]);
-    setAddDueModalVisible(false);
-    setNewDue({
-      name: "",
-      phone: "",
-      address: "",
-      initialAmount: ""
-    });
-  };
-
-  const renderItem = ({ item }) => (
+  const renderItem = useCallback(({ item }) => (
     <Card style={[styles.dueCard, { backgroundColor: theme.colors.surface }]}>
       <Card.Content>
         <View style={styles.dueHeader}>
           <Text style={[styles.dueName, { color: theme.colors.onSurface }]}>{item.name}</Text>
           <Badge 
-            style={[styles.dueBadge, { backgroundColor: item.dueValue > 10000 ? '#F44336' : '#FF9800' }]}
+            style={[styles.dueBadge, { 
+              backgroundColor: item.dueValue > 10000 ? '#F44336' : 
+                             item.dueValue > 0 ? '#FF9800' : '#4CAF50' 
+            }]}
             textStyle={styles.dueBadgeText}
           >
             {formatCurrency(item.dueValue)}
@@ -147,7 +172,7 @@ const DuesScreen = () => {
               style={styles.detailIcon}
             />
             <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-              {item.address}
+              {item.address || 'No address provided'}
             </Text>
           </View>
           
@@ -163,21 +188,36 @@ const DuesScreen = () => {
             </Text>
           </View>
           
+          {item.lastPayment && (
+            <View style={styles.dueDetailRow}>
+              <MaterialCommunityIcons 
+                name="clock" 
+                size={16} 
+                color={theme.colors.onSurfaceVariant} 
+                style={styles.detailIcon}
+              />
+              <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
+                Last payment: {item.lastPayment}
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.dueDetailRow}>
             <MaterialCommunityIcons 
-              name="clock" 
+              name="cash" 
               size={16} 
               color={theme.colors.onSurfaceVariant} 
               style={styles.detailIcon}
             />
             <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-              Last payment: {item.lastPayment}
+              Total paid: {formatCurrency(item.totalPaid || 0)}
             </Text>
           </View>
         </View>
         
         <View style={styles.dueActions}>
           <TouchableOpacity
+            onPress={() => handleCallCustomer(item.phone)}
             style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
           >
             <MaterialCommunityIcons 
@@ -188,6 +228,7 @@ const DuesScreen = () => {
           </TouchableOpacity>
           
           <TouchableOpacity
+            onPress={() => handleMessageCustomer(item.phone)}
             style={[styles.actionButton, { backgroundColor: theme.colors.tertiaryContainer }]}
           >
             <MaterialCommunityIcons 
@@ -200,7 +241,7 @@ const DuesScreen = () => {
           <TouchableOpacity 
             onPress={() => {
               Keyboard.dismiss();
-              router.push(`duesScreen/${item.id}`);
+              router.push(`/duesScreen/${item._id}`);
             }}
             style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
           >
@@ -213,7 +254,37 @@ const DuesScreen = () => {
         </View>
       </Card.Content>
     </Card>
-  );
+  ), [theme, formatCurrency, handleCallCustomer, handleMessageCustomer]);
+
+  if (loading && customers.length === 0) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator animating={true} size="large" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.errorContainer, { backgroundColor: theme.colors.background }]}>
+        <MaterialCommunityIcons 
+          name="alert-circle" 
+          size={48} 
+          color={theme.colors.error} 
+        />
+        <Text style={[styles.errorText, { color: theme.colors.onSurface }]}>
+          {error}
+        </Text>
+        <Button 
+          mode="contained" 
+          onPress={refreshCustomers}
+          style={styles.retryButton}
+        >
+          Retry
+        </Button>
+      </View>
+    );
+  }
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -276,13 +347,49 @@ const DuesScreen = () => {
           </Menu>
         </View>
 
+        {/* Summary Bar */}
+        <View style={[styles.summaryContainer, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+              Customers
+            </Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.primary }]}>
+              {totalCustomers}
+            </Text>
+          </View>
+          
+          <View style={styles.summaryDivider} />
+          
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+              Total Due
+            </Text>
+            <Text style={[styles.summaryValue, { color: '#F44336' }]}>
+              {formatCurrency(totalDue)}
+            </Text>
+          </View>
+          
+          <View style={styles.summaryDivider} />
+          
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+              Total Paid
+            </Text>
+            <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
+              {formatCurrency(totalPaid)}
+            </Text>
+          </View>
+        </View>
+
         {/* Dues List */}
         <FlatList
-          data={filteredDues}
+          data={filteredCustomers}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
+          refreshing={loading}
+          onRefresh={refreshCustomers}
+          
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons 
@@ -291,8 +398,17 @@ const DuesScreen = () => {
                 color={theme.colors.onSurfaceVariant} 
               />
               <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                {searchQuery ? "No matching dues found" : "No dues records available"}
+                {searchQuery ? "No matching customers found" : "No customers with dues available"}
               </Text>
+              {!searchQuery && (
+                <Button 
+                  mode="contained" 
+                  onPress={() => setAddDueModalVisible(true)}
+                  style={styles.addFirstButton}
+                >
+                  Add First Customer
+                </Button>
+              )}
             </View>
           }
         />
@@ -310,28 +426,30 @@ const DuesScreen = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalKeyboardView}
               >
-                <ScrollView 
-                  contentContainerStyle={styles.modalScrollContent}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <View style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
-                    <Text variant="titleLarge" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
-                      Add New Due
+                <View style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+                  <View style={styles.modalHeader}>
+                    <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
+                      Add New Customer
                     </Text>
+                    <IconButton 
+                      icon="close" 
+                      onPress={() => setAddDueModalVisible(false)}
+                      style={styles.closeButton}
+                    />
+                  </View>
 
+                  <ScrollView 
+                    contentContainerStyle={styles.modalScrollContent}
+                    keyboardShouldPersistTaps="handled"
+                  >
                     <TextInput
                       label="Customer Name *"
                       value={newDue.name}
                       onChangeText={(text) => setNewDue({...newDue, name: text})}
                       mode="outlined"
                       style={styles.modalInput}
-                      theme={{
-                        colors: {
-                          primary: theme.colors.primary,
-                          background: theme.colors.surface,
-                        }
-                      }}
                       autoFocus
+                      theme={{ colors: { primary: theme.colors.primary } }}
                     />
 
                     <TextInput
@@ -341,12 +459,7 @@ const DuesScreen = () => {
                       keyboardType="phone-pad"
                       mode="outlined"
                       style={styles.modalInput}
-                      theme={{
-                        colors: {
-                          primary: theme.colors.primary,
-                          background: theme.colors.surface,
-                        }
-                      }}
+                      theme={{ colors: { primary: theme.colors.primary } }}
                     />
 
                     <TextInput
@@ -355,12 +468,18 @@ const DuesScreen = () => {
                       onChangeText={(text) => setNewDue({...newDue, address: text})}
                       mode="outlined"
                       style={styles.modalInput}
-                      theme={{
-                        colors: {
-                          primary: theme.colors.primary,
-                          background: theme.colors.surface,
-                        }
-                      }}
+                      theme={{ colors: { primary: theme.colors.primary } }}
+                    />
+
+                    <TextInput
+                      label="Notes"
+                      value={newDue.notes}
+                      onChangeText={(text) => setNewDue({...newDue, notes: text})}
+                      mode="outlined"
+                      style={styles.modalInput}
+                      multiline
+                      numberOfLines={3}
+                      theme={{ colors: { primary: theme.colors.primary } }}
                     />
 
                     <TextInput
@@ -371,34 +490,21 @@ const DuesScreen = () => {
                       mode="outlined"
                       style={styles.modalInput}
                       left={<TextInput.Affix text="৳" />}
-                      theme={{
-                        colors: {
-                          primary: theme.colors.primary,
-                          background: theme.colors.surface,
-                        }
-                      }}
+                      theme={{ colors: { primary: theme.colors.primary } }}
                     />
 
-                    <View style={styles.modalFooter}>
-                      <Button 
-                        mode="outlined" 
-                        onPress={() => setAddDueModalVisible(false)}
-                        style={styles.modalButton}
-                        labelStyle={{ color: theme.colors.onSurface }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        mode="contained" 
-                        onPress={handleAddDue}
-                        style={[styles.modalButton, { marginLeft: 16 }]}
-                        disabled={!newDue.name || !newDue.phone || !newDue.initialAmount}
-                      >
-                        Add Due
-                      </Button>
-                    </View>
-                  </View>
-                </ScrollView>
+                    <Button 
+                      mode="contained" 
+                      onPress={handleAddDue}
+                      style={[styles.modalButton, { marginTop: 16 }]}
+                      disabled={!newDue.name || !newDue.phone || !newDue.initialAmount}
+                      loading={createLoading}
+                      contentStyle={{ height: 48 }}
+                    >
+                      {createLoading ? '' : 'Add Customer'}
+                    </Button>
+                  </ScrollView>
+                </View>
               </KeyboardAvoidingView>
             </View>
           </TouchableWithoutFeedback>
@@ -412,6 +518,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 16,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  retryButton: {
+    width: '60%',
+  },
   appbar: {
     elevation: 2,
   },
@@ -424,7 +549,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 8,
-    gap: 5
+    gap: 8
   },
   searchInput: {
     height: 48,
@@ -435,14 +560,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
   },
+  summaryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    borderRadius: 8,
+    elevation: 1,
+    marginBottom: 12,
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#e0e0e0',
+  },
   listContent: {
     padding: 16,
     paddingBottom: 24,
+    zIndex: 100,
   },
   dueCard: {
     marginBottom: 12,
     borderRadius: 8,
     elevation: 1,
+    zIndex : 200
   },
   dueHeader: {
     flexDirection: 'row',
@@ -503,6 +658,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
+  addFirstButton: {
+    marginTop: 20,
+  },
   // Modal styles
   modalOverlay: {
     flex: 1,
@@ -513,39 +671,36 @@ const styles = StyleSheet.create({
   modalKeyboardView: {
     flex: 1,
     width: '100%',
+    alignItems : 'center',
     justifyContent: 'center',
-  },
-  modalScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    width: '100%',
   },
   modalContainer: {
     width: '90%',
     maxWidth: 400,
     borderRadius: 12,
-    padding: 20,
     elevation: 5,
+    maxHeight: Dimensions.get('window').height * 0.8,
   },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  closeButton: {
+    margin: 0,
+  },
+  modalScrollContent: {
+    padding: 16,
   },
   modalInput: {
     marginBottom: 16,
     backgroundColor: 'transparent',
-    width: '100%',
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-    width: '100%',
   },
   modalButton: {
-    minWidth: 120,
+    width: '100%',
   },
 });
 

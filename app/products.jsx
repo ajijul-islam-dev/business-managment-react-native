@@ -1,18 +1,55 @@
-import { useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Modal, FlatList, TextInput as RNTextInput, Keyboard,TouchableWithoutFeedback } from "react-native";
-import { Appbar, Card, Text, TextInput, Button, Menu, Divider, useTheme } from "react-native-paper";
+import React, { useState, useRef, useContext, useEffect } from 'react';
+import { 
+  View, 
+  StyleSheet, 
+  Dimensions, 
+  TouchableOpacity, 
+  Modal, 
+  FlatList, 
+  TextInput as RNTextInput, 
+  Keyboard,
+  TouchableWithoutFeedback,
+  Alert
+} from "react-native";
+import { 
+  Appbar, 
+  Card, 
+  Text, 
+  TextInput, 
+  Button, 
+  Menu, 
+  Divider, 
+  useTheme 
+} from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from '@react-navigation/native';
+import { ProductContext } from '../providers/ProductProvider';
 
 const { width } = Dimensions.get('window');
 
 const ProductsScreen = () => {
   const theme = useTheme();
+  const navigation = useNavigation();
+  const {
+    products,
+    loading,
+    fetchProducts,
+    handlePurchase,
+    handleSale,
+    handleUpdateProduct,
+    deleteProduct
+  } = useContext(ProductContext);
+console.log(loading);
+  // State variables
   const [searchQuery, setSearchQuery] = useState("");
   const [sortVisible, setSortVisible] = useState(false);
   const [sortOption, setSortOption] = useState("name");
+  const [longPressedItem, setLongPressedItem] = useState(null);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const menuAnchorRef = useRef(null);
 
-  // Modals state
+  // Modal states
   const [buyModalVisible, setBuyModalVisible] = useState(false);
   const [saleModalVisible, setSaleModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -30,42 +67,6 @@ const ProductsScreen = () => {
     unit: ''
   });
 
-  // Static product data
-  const [productsData, setProductsData] = useState([
-    {
-      id: 1,
-      name: "Premium Coffee Beans",
-      price: 1299,
-      stock: 45,
-      packSize: "500g",
-      unit: "bag"
-    },
-    {
-      id: 2,
-      name: "Organic Green Tea",
-      price: 850,
-      stock: 32,
-      packSize: "100g",
-      unit: "box"
-    },
-    {
-      id: 3,
-      name: "Chocolate Cookies",
-      price: 499,
-      stock: 78,
-      packSize: "250g",
-      unit: "pack"
-    },
-    {
-      id: 4,
-      name: "Olive Oil",
-      price: 1575,
-      stock: 23,
-      packSize: "1L",
-      unit: "bottle"
-    }
-  ]);
-
   const sortOptions = [
     { label: "Name (A-Z)", value: "name" },
     { label: "Price (Low-High)", value: "priceAsc" },
@@ -74,8 +75,11 @@ const ProductsScreen = () => {
     { label: "Stock (High-Low)", value: "stockDesc" }
   ];
 
-  // Filter and sort products
-  const filteredProducts = productsData
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const filteredProducts = products
     .filter(product => 
       product.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
@@ -90,12 +94,10 @@ const ProductsScreen = () => {
       }
     });
 
-  // Format currency
   const formatCurrency = (amount) => {
     return `৳${amount?.toLocaleString('en-IN') || '0'}`;
   };
 
-  // Calculate totals
   const calculateSaleTotal = () => {
     return (parseInt(saleQuantity) * parseInt(salePrice)) || 0;
   };
@@ -104,11 +106,11 @@ const ProductsScreen = () => {
     return (parseInt(buyQuantity) * (selectedProduct?.price || 0)) || 0;
   };
 
-  // Modal handlers
   const openBuyModal = (product) => {
     setSelectedProduct(product);
     setBuyQuantity("1");
     setBuyModalVisible(true);
+    setLongPressedItem(null);
   };
 
   const openSaleModal = (product) => {
@@ -116,6 +118,7 @@ const ProductsScreen = () => {
     setSaleQuantity("1");
     setSalePrice(product.price.toString());
     setSaleModalVisible(true);
+    setLongPressedItem(null);
   };
 
   const openEditModal = (product) => {
@@ -128,84 +131,133 @@ const ProductsScreen = () => {
       unit: product.unit
     });
     setEditModalVisible(true);
+    setLongPressedItem(null);
   };
 
-  // Submit handlers
-  const handleBuySubmit = () => {
-    // Update stock in productsData
-    const updatedProducts = productsData.map(p => 
-      p.id === selectedProduct.id 
-        ? {...p, stock: p.stock + parseInt(buyQuantity)} 
-        : p
-    );
-    setProductsData(updatedProducts);
-    setBuyModalVisible(false);
-    Keyboard.dismiss();
+  const handleDelete = async () => {
+    try {
+      await deleteProduct(productToDelete);
+      setShowDeleteConfirm(false);
+      setLongPressedItem(null);
+      Alert.alert('Success', 'Product deleted successfully');
+    } catch (error) {
+      console.error('Delete error:', error);
+      Alert.alert('Error', error.message || 'Failed to delete product');
+    }
   };
 
-  const handleSaleSubmit = () => {
-    // Update stock in productsData
-    const updatedProducts = productsData.map(p => 
-      p.id === selectedProduct.id 
-        ? {...p, stock: Math.max(0, p.stock - parseInt(saleQuantity))} 
-        : p
-    );
-    setProductsData(updatedProducts);
-    setSaleModalVisible(false);
-    Keyboard.dismiss();
+  const submitPurchase = async () => {
+    try {
+      const quantity = parseInt(buyQuantity);
+      const unitCost = selectedProduct.price;
+
+      if (isNaN(quantity) || quantity <= 0) {
+        throw new Error('Invalid quantity');
+      }
+
+      await handlePurchase(selectedProduct._id, quantity, unitCost);
+      setBuyModalVisible(false);
+      Keyboard.dismiss();
+      Alert.alert('Success', 'Purchase recorded successfully!');
+      await fetchProducts();
+    } catch (error) {
+      console.error('Purchase error:', error);
+      Alert.alert('Error', error.message || 'Failed to record purchase');
+    }
   };
 
-  const handleEditSubmit = () => {
-    // Update product in productsData
-    const updatedProducts = productsData.map(p => 
-      p.id === selectedProduct.id 
-        ? {
-            ...p, 
-            name: updatedProduct.name,
-            price: parseInt(updatedProduct.price) || 0,
-            stock: parseInt(updatedProduct.stock) || 0,
-            packSize: updatedProduct.packSize,
-            unit: updatedProduct.unit
-          } 
-        : p
-    );
-    setProductsData(updatedProducts);
-    setEditModalVisible(false);
-    Keyboard.dismiss();
+  const submitSale = async () => {
+    try {
+      await handleSale(
+        selectedProduct._id, 
+        parseInt(saleQuantity),
+        parseInt(salePrice),
+        parseInt(selectedProduct.price)
+      );
+      setSaleModalVisible(false);
+      Keyboard.dismiss();
+      await fetchProducts();
+    } catch (error) {
+      console.error("Sale error:", error);
+      Alert.alert('Error', error.message || 'Failed to record sale');
+    }
   };
 
-  // Render item with long press
+  const submitEdit = async () => {
+    try {
+      await handleUpdateProduct(selectedProduct._id, {
+        name: updatedProduct.name,
+        price: parseInt(updatedProduct.price),
+        stock: parseInt(updatedProduct.stock),
+        packSize: updatedProduct.packSize,
+        unit: updatedProduct.unit
+      });
+      setEditModalVisible(false);
+      Keyboard.dismiss();
+      await fetchProducts();
+    } catch (error) {
+      console.error("Update error:", error);
+      Alert.alert('Error', error.message || 'Failed to update product');
+    }
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      onPress={() => {}}
-      onLongPress={() => openEditModal(item)}
+      onPress={() => {
+        if (longPressedItem === item._id) {
+          setLongPressedItem(null);
+        }
+      }}
+      onLongPress={() => setLongPressedItem(item._id)}
       activeOpacity={0.9}
+      delayLongPress={300}
     >
       <Card style={styles.productCard}>
         <Card.Content style={styles.cardContent}>
           <View style={styles.productInfo}>
-            <Text style={styles.productName}>{item.name}</Text>
+            <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
+              {item.name} {item.packSize}{item.unit}
+            </Text>
             <View style={styles.productDetails}>
               <Text style={styles.productPrice}>{formatCurrency(item.price)}</Text>
-              <Text style={styles.productStock}>{item.stock} pcs</Text>
-              <Text style={styles.productPack}>{item.packSize} {item.unit}</Text>
+              <Text style={styles.productStock}>stock : {item.stock}</Text>
             </View>
           </View>
           
-          <View style={styles.productActions}>
-            <TouchableOpacity
-              onPress={() => openBuyModal(item)}
-              style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
-            >
-            <Text style={{color : "#fff", fontSize : 10}}>BUY</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => openSaleModal(item)}
-              style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
-            >
-             <Text style={{color : "#fff",fontSize : 10}}>SELL</Text>
-            </TouchableOpacity>
-          </View>
+          {longPressedItem === item._id ? (
+            <View style={styles.editDeleteActions}>
+              <TouchableOpacity
+                onPress={() => openEditModal(item)}
+                style={[styles.actionButton, styles.editButton]}
+              >
+                <MaterialCommunityIcons name="pencil" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setProductToDelete(item._id);
+                  setShowDeleteConfirm(true);
+                }}
+                style={[styles.actionButton, styles.deleteButton]}
+              >
+                <MaterialCommunityIcons name="trash-can" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.productActions}>
+              <TouchableOpacity
+                onPress={() => openBuyModal(item)}
+                style={[styles.actionButton, styles.buyButton]}
+              >
+                <Text style={styles.actionButtonText}>BUY</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => openSaleModal(item)}
+                style={[styles.actionButton, styles.sellButton]}
+              >
+                <Text style={styles.actionButtonText}>SELL</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </Card.Content>
       </Card>
     </TouchableOpacity>
@@ -215,13 +267,17 @@ const ProductsScreen = () => {
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.safeContainer}>
         <Appbar.Header style={styles.appbar}>
+          <Appbar.BackAction onPress={() => navigation.goBack()} />
           <Appbar.Content 
             title="All Products" 
             titleStyle={styles.appbarTitle}
           />
+          <Appbar.Action 
+            icon="plus" 
+            onPress={() => navigation.navigate('AddProduct')} 
+          />
         </Appbar.Header>
 
-        {/* Fixed Search/Sort Header */}
         <View style={styles.searchSortContainer}>
           <TextInput
             mode="outlined"
@@ -263,18 +319,19 @@ const ProductsScreen = () => {
                   title={option.label}
                 />
                 {index < sortOptions.length - 1 && <Divider />}
-            </View>
+              </View>
             ))}
           </Menu>
         </View>
 
-        {/* Product List */}
         <FlatList
           data={filteredProducts}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
+          refreshing={loading}
+          onRefresh={fetchProducts}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="package-variant-remove" size={60} color="#888" />
@@ -297,7 +354,7 @@ const ProductsScreen = () => {
                   <Text style={styles.modalLabel}>Quantity</Text>
                   <View style={styles.quantityContainer}>
                     <TouchableOpacity
-                      onPress={() => setBuyQuantity(Math.max(1, parseInt(buyQuantity) - 1).toString())}
+                      onPress={() => setBuyQuantity(Math.max(1, parseInt(buyQuantity || '1') - 1).toString())}
                       style={styles.quantityButton}
                     >
                       <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
@@ -309,7 +366,7 @@ const ProductsScreen = () => {
                       keyboardType="numeric"
                     />
                     <TouchableOpacity
-                      onPress={() => setBuyQuantity((parseInt(buyQuantity) + 1).toString())}
+                      onPress={() => setBuyQuantity((parseInt(buyQuantity || '1') + 1).toString())}
                       style={styles.quantityButton}
                     >
                       <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
@@ -318,13 +375,26 @@ const ProductsScreen = () => {
                 </View>
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalLabel}>Unit Price</Text>
-                  <Text style={styles.priceText}>{formatCurrency(selectedProduct?.price)}</Text>
+                  <Text style={styles.modalLabel}>Unit Cost</Text>
+                  <TextInput
+                    mode="outlined"
+                    value={selectedProduct?.price?.toString()}
+                    onChangeText={(text) => {
+                      const newPrice = text.replace(/[^0-9]/g, '') || "0";
+                      setSelectedProduct(prev => ({
+                        ...prev,
+                        price: parseInt(newPrice)
+                      }));
+                    }}
+                    keyboardType="numeric"
+                    left={<TextInput.Affix text="৳" />}
+                    style={styles.priceInput}
+                  />
                 </View>
 
                 <View style={styles.modalSection}>
                   <Text style={styles.modalLabel}>Total Purchase Value</Text>
-                  <Text style={styles.totalValue}>{formatCurrency(calculateBuyTotal())}</Text>
+                  <Text style={[styles.totalValue, { color: '#FF9800' }]}>{formatCurrency(calculateBuyTotal())}</Text>
                 </View>
 
                 <View style={styles.modalButtons}>
@@ -337,9 +407,10 @@ const ProductsScreen = () => {
                   </Button>
                   <Button 
                     mode="contained" 
-                    onPress={handleBuySubmit}
+                    onPress={submitPurchase}
                     style={styles.submitButton}
                     buttonColor="#FF9800"
+                    loading={loading}
                   >
                     Confirm Purchase
                   </Button>
@@ -408,9 +479,10 @@ const ProductsScreen = () => {
                   </Button>
                   <Button 
                     mode="contained" 
-                    onPress={handleSaleSubmit}
+                    onPress={submitSale}
                     style={styles.submitButton}
                     buttonColor="#4CAF50"
+                    loading={loading}
                   >
                     Confirm Sale
                   </Button>
@@ -481,8 +553,9 @@ const ProductsScreen = () => {
                   </Button>
                   <Button 
                     mode="contained" 
-                    onPress={handleEditSubmit}
+                    onPress={submitEdit}
                     style={styles.submitButton}
+                    loading={loading}
                   >
                     Save Changes
                   </Button>
@@ -490,6 +563,37 @@ const ProductsScreen = () => {
               </View>
             </View>
           </TouchableWithoutFeedback>
+        </Modal>
+
+        {/* Delete Confirmation Dialog */}
+        <Modal visible={showDeleteConfirm} transparent animationType="fade">
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+              <Text style={styles.modalTitle}>Delete Product</Text>
+              <Text style={styles.modalText}>Are you sure you want to delete this product? This action cannot be undone.</Text>
+              <View style={styles.modalButtons}>
+                <Button 
+                  mode="outlined" 
+                  onPress={() => {
+                    setShowDeleteConfirm(false);
+                    setLongPressedItem(null);
+                  }}
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  mode="contained" 
+                  onPress={handleDelete}
+                  style={styles.submitButton}
+                  buttonColor="#F44336"
+                  loading={loading}
+                >
+                  Delete
+                </Button>
+              </View>
+            </View>
+          </View>
         </Modal>
       </View>
     </TouchableWithoutFeedback>
@@ -542,35 +646,37 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 8,
     elevation: 2,
+    overflow: 'hidden',
   },
   cardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
   },
   productInfo: {
     flex: 1,
+    marginRight: 8,
   },
   productName: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    maxWidth: '90%',
   },
   productDetails: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 8,
   },
   productPrice: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#4CAF50',
-    marginRight: 12,
   },
   productStock: {
     fontSize: 14,
     color: '#666',
-    marginRight: 12,
   },
   productPack: {
     fontSize: 14,
@@ -580,12 +686,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  editDeleteActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   actionButton: {
     width: 40,
     height: 40,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  actionButtonText: {
+    color: "#fff", 
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  buyButton: {
+    backgroundColor: '#FF9800',
+  },
+  sellButton: {
+    backgroundColor: '#4CAF50',
+  },
+  editButton: {
+    backgroundColor: '#2196F3',
+  },
+  deleteButton: {
+    backgroundColor: '#F44336',
   },
   emptyContainer: {
     flex: 1,
@@ -616,6 +743,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 24,
   },
   modalSubtitle: {
     fontSize: 16,

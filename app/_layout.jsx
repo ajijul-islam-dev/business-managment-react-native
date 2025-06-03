@@ -7,6 +7,7 @@ import {
 } from 'react-native-paper';
 import AuthProvider from '../providers/AuthProvider';
 import ProductProvider from '../providers/ProductProvider';
+import CustomerProvider from '../providers/CustomerProvider';
 
 const theme = {
   ...DefaultTheme,
@@ -21,13 +22,15 @@ export default function RootLayout() {
   return (
     <PaperProvider theme={theme}>
       <AuthProvider>
-        <ProductProvider>
+       <CustomerProvider>
+         <ProductProvider>
           <StatusBar style="auto" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="+not-found" />
           </Stack>
         </ProductProvider>
+       </CustomerProvider>
       </AuthProvider>
     </PaperProvider>
   );

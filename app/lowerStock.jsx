@@ -1,54 +1,41 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput as RNTextInput } from "react-native";
+import React, { useState, useRef, useContext,useEffect } from 'react';
+import { View, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput as RNTextInput, Alert } from "react-native";
 import { Appbar, Card, Text, TextInput, Button, Menu, Divider, useTheme, Badge } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { ProductContext } from '../providers/ProductProvider';
 
 const LowStockScreen = () => {
   const theme = useTheme();
+  const {
+    products,
+    loading,
+    fetchProducts,
+    handlePurchase
+  } = useContext(ProductContext);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortVisible, setSortVisible] = useState(false);
   const [sortOption, setSortOption] = useState("stockAsc");
-  const menuAnchorRef = useRef(null);
   const [buyModalVisible, setBuyModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [buyQuantity, setBuyQuantity] = useState(1);
-
-  // Static product data - only products with stock < 3
-  const productsData = [
-    {
-      id: 1,
-      name: "Premium Coffee Beans",
-      price: 1299,
-      stock: 2,
-      packSize: "500g",
-      unit: "bag"
-    },
-    {
-      id: 2,
-      name: "Organic Green Tea",
-      price: 850,
-      stock: 1,
-      packSize: "100g",
-      unit: "box"
-    },
-    {
-      id: 3,
-      name: "Olive Oil",
-      price: 1575,
-      stock: 0, // Will be filtered out (shows in Out of Stock)
-      packSize: "1L",
-      unit: "bottle"
-    }
-  ].filter(p => p.stock > 0 && p.stock < 3); // Only low stock items
+  const [buyQuantity, setBuyQuantity] = useState("1");
+  const menuAnchorRef = useRef(null);
 
   const sortOptions = [
     { label: "Stock (Low-High)", value: "stockAsc" },
     { label: "Stock (High-Low)", value: "stockDesc" },
     { label: "Price (Low-High)", value: "priceAsc" },
-    { label: "Price (High-Low)", value: "priceDesc" }
+    { label: "Price (High-Low)", value: "priceDesc" },
+    { label: "Name (A-Z)", value: "nameAsc" },
+    { label: "Name (Z-A)", value: "nameDesc" }
   ];
 
-  const filteredProducts = productsData
+  const lowStockProducts = products.filter(p => p.stock > 0 && p.stock <= 5);
+
+  const filteredProducts = lowStockProducts
     .filter(product => product.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       switch(sortOption) {
@@ -56,23 +43,35 @@ const LowStockScreen = () => {
         case 'stockDesc': return b.stock - a.stock;
         case 'priceAsc': return a.price - b.price;
         case 'priceDesc': return b.price - a.price;
+        case 'nameAsc': return a.name.localeCompare(b.name);
+        case 'nameDesc': return b.name.localeCompare(a.name);
         default: return 0;
       }
     });
 
   const formatCurrency = (amount) => `৳${amount?.toLocaleString('en-IN') || '0'}`;
 
-  const calculateBuyTotal = () => (buyQuantity * (selectedProduct?.price || 0)).toLocaleString('en-IN');
+  const calculateBuyTotal = () => (parseInt(buyQuantity) * (selectedProduct?.price || 0)) || 0;
 
   const openBuyModal = (product) => {
     setSelectedProduct(product);
-    setBuyQuantity(1);
+    setBuyQuantity("1");
     setBuyModalVisible(true);
   };
 
-  const handleBuySubmit = () => {
-    console.log(`Bought ${buyQuantity} of ${selectedProduct.name} for ৳${calculateBuyTotal()}`);
-    setBuyModalVisible(false);
+  const handleBuySubmit = async () => {
+    try {
+      await handlePurchase(
+        selectedProduct._id,
+        parseInt(buyQuantity),
+        selectedProduct.price
+      );
+      setBuyModalVisible(false);
+      await fetchProducts();
+      Alert.alert('Success', 'Purchase recorded successfully!');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to record purchase');
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -107,7 +106,7 @@ const LowStockScreen = () => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header style={[styles.appbar, { backgroundColor: theme.colors.surface }]}>
         <Appbar.Content 
-          title="Low Stock Products" 
+          title="Low Stock (≤5)" 
           titleStyle={[styles.appbarTitle, { color: theme.colors.onSurface }]}
         />
       </Appbar.Header>
@@ -159,8 +158,10 @@ const LowStockScreen = () => {
       <FlatList
         data={filteredProducts}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContent}
+        refreshing={loading}
+        onRefresh={fetchProducts}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons 
@@ -175,7 +176,6 @@ const LowStockScreen = () => {
         }
       />
 
-      {/* Buy Modal */}
       <Modal visible={buyModalVisible} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
@@ -188,7 +188,7 @@ const LowStockScreen = () => {
               <Text style={[styles.modalLabel, { color: theme.colors.onSurfaceVariant }]}>Quantity</Text>
               <View style={styles.quantityContainer}>
                 <TouchableOpacity
-                  onPress={() => setBuyQuantity(Math.max(1, buyQuantity - 1))}
+                  onPress={() => setBuyQuantity(Math.max(1, parseInt(buyQuantity || '1')) - 1)}
                   style={[styles.quantityButton, { borderColor: theme.colors.outline }]}
                 >
                   <MaterialCommunityIcons name="minus" size={24} color={theme.colors.primary} />
@@ -198,12 +198,12 @@ const LowStockScreen = () => {
                     borderColor: theme.colors.outline,
                     color: theme.colors.onSurface 
                   }]}
-                  value={buyQuantity.toString()}
-                  onChangeText={(text) => setBuyQuantity(Math.max(1, parseInt(text) || 1))}
+                  value={buyQuantity}
+                  onChangeText={(text) => setBuyQuantity(text.replace(/[^0-9]/g, '') || "1")}
                   keyboardType="numeric"
                 />
                 <TouchableOpacity
-                  onPress={() => setBuyQuantity(buyQuantity + 1)}
+                  onPress={() => setBuyQuantity((parseInt(buyQuantity || '1') + 1).toString())}
                   style={[styles.quantityButton, { borderColor: theme.colors.outline }]}
                 >
                   <MaterialCommunityIcons name="plus" size={24} color={theme.colors.primary} />
@@ -212,7 +212,18 @@ const LowStockScreen = () => {
             </View>
 
             <View style={styles.modalSection}>
-              <Text style={[styles.modalLabel, { color: theme.colors.onSurfaceVariant }]}>Total</Text>
+              <Text style={[styles.modalLabel, { color: theme.colors.onSurfaceVariant }]}>Unit Cost</Text>
+              <TextInput
+                mode="outlined"
+                value={selectedProduct?.price?.toString()}
+                disabled
+                style={styles.priceInput}
+                left={<TextInput.Affix text="৳" />}
+              />
+            </View>
+
+            <View style={styles.modalSection}>
+              <Text style={[styles.modalLabel, { color: theme.colors.onSurfaceVariant }]}>Total Purchase Value</Text>
               <Text style={[styles.totalValue, { color: theme.colors.primary }]}>
                 {formatCurrency(calculateBuyTotal())}
               </Text>
@@ -233,6 +244,7 @@ const LowStockScreen = () => {
                 style={styles.submitButton}
                 buttonColor={theme.colors.primary}
                 textColor={theme.colors.onPrimary}
+                loading={loading}
               >
                 Confirm Purchase
               </Button>
@@ -244,7 +256,6 @@ const LowStockScreen = () => {
   );
 };
 
-// Reuse the same styles from your ProductsScreen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -262,6 +273,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
   },
   searchInput: {
     height: 48,
@@ -289,6 +301,7 @@ const styles = StyleSheet.create({
   },
   productInfo: {
     flex: 1,
+    marginRight: 8,
   },
   productName: {
     fontSize: 16,
@@ -379,6 +392,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     height: 40,
     padding: 0,
+  },
+  priceInput: {
+    marginTop: 8,
   },
   totalValue: {
     fontSize: 18,

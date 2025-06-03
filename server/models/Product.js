@@ -30,6 +30,8 @@ const productSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: true,
+    index: true
   },
   createdAt: {
     type: Date,
@@ -41,11 +43,12 @@ const productSchema = new mongoose.Schema({
   }
 });
 
-// Update timestamp before saving
 productSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
+
+productSchema.index({ createdBy: 1, name: 1 }); // Compound index for better query performance
 
 const Product = mongoose.model('Product', productSchema);
 
