@@ -69,6 +69,17 @@ const AddProductScreen = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      price: '',
+      stock: '',
+      packSize: '',
+      unit: '',
+    });
+    setErrors({});
+  };
+
   const handleSubmit = async () => {
     if (validateForm()) {
       setIsSubmitting(true);
@@ -81,6 +92,7 @@ const AddProductScreen = () => {
           unit: formData.unit,
           createdBy: user._id
         });
+        resetForm();
         navigation.navigate('products');
       } catch (error) {
         // Error handling is done in the ProductProvider
@@ -129,6 +141,7 @@ const AddProductScreen = () => {
                 style={styles.input}
                 error={!!errors.name}
                 left={<TextInput.Icon icon="tag" />}
+                disabled={isSubmitting}
               />
               <HelperText type="error" visible={!!errors.name}>
                 {errors.name}
@@ -143,6 +156,7 @@ const AddProductScreen = () => {
                 style={styles.input}
                 error={!!errors.price}
                 left={<TextInput.Icon icon="currency-bdt" />}
+                disabled={isSubmitting}
               />
               <HelperText type="error" visible={!!errors.price}>
                 {errors.price}
@@ -157,6 +171,7 @@ const AddProductScreen = () => {
                 style={styles.input}
                 error={!!errors.stock}
                 left={<TextInput.Icon icon="package-variant" />}
+                disabled={isSubmitting}
               />
               <HelperText type="error" visible={!!errors.stock}>
                 {errors.stock}
@@ -171,6 +186,7 @@ const AddProductScreen = () => {
                 mode="outlined"
                 style={styles.input}
                 error={!!errors.packSize}
+                disabled={isSubmitting}
               />
               <HelperText type="error" visible={!!errors.packSize}>
                 {errors.packSize}
@@ -185,7 +201,8 @@ const AddProductScreen = () => {
                   anchor={
                     <TouchableOpacity 
                       style={[styles.dropdownButton, errors.unit ? styles.dropdownError : null]}
-                      onPress={() => setUnitMenuVisible(true)}
+                      onPress={() => !isSubmitting && setUnitMenuVisible(true)}
+                      disabled={isSubmitting}
                     >
                       <Text style={styles.dropdownButtonText}>
                         {formData.unit ? units.find(u => u.value === formData.unit).label : 'Select Unit'}
@@ -217,12 +234,9 @@ const AddProductScreen = () => {
                 style={styles.submitButton}
                 contentStyle={styles.buttonContent}
                 disabled={isSubmitting}
+                loading={isSubmitting}
               >
-                {isSubmitting ? (
-                  <ActivityIndicator animating={true} color="#fff" />
-                ) : (
-                  'Add Product'
-                )}
+                {isSubmitting ? 'Adding...' : 'Add Product'}
               </Button>
             </Card.Content>
           </Card>

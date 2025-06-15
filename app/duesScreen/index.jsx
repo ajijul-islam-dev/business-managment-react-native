@@ -54,7 +54,6 @@ const DuesScreen = () => {
     notes: "",
     initialAmount: ""
   });
-  console.log(newDue);
   const [createLoading, setCreateLoading] = useState(false);
   const menuAnchorRef = useRef(null);
 
@@ -147,114 +146,109 @@ const DuesScreen = () => {
     Alert.alert('Message', `Would you like to message ${phone}?`);
   }, []);
 
-  const renderItem = useCallback(({ item }) => (
-    <Card style={[styles.dueCard, { backgroundColor: theme.colors.surface }]}>
-      <Card.Content>
-        <View style={styles.dueHeader}>
-          <Text style={[styles.dueName, { color: theme.colors.onSurface }]}>{item.name}</Text>
-          <Badge 
-            style={[styles.dueBadge, { 
-              backgroundColor: item.dueValue > 10000 ? '#F44336' : 
-                             item.dueValue > 0 ? '#FF9800' : '#4CAF50' 
-            }]}
-            textStyle={styles.dueBadgeText}
-          >
-            {formatCurrency(item.dueValue)}
-          </Badge>
-        </View>
-        
-        <View style={styles.dueDetails}>
-          <View style={styles.dueDetailRow}>
-            <MaterialCommunityIcons 
-              name="map-marker" 
-              size={16} 
-              color={theme.colors.onSurfaceVariant} 
-              style={styles.detailIcon}
-            />
-            <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-              {item.address || 'No address provided'}
-            </Text>
+  const renderItem = ({ item }) => {
+    return (
+      <Card style={[styles.dueCard, { backgroundColor: theme.colors.surface }]}>
+        <Card.Content>
+          <View style={styles.dueHeader}>
+            <Text style={[styles.dueName, { color: theme.colors.onSurface }]}>{item.name}</Text>
+            <Badge 
+              style={[styles.dueBadge, { 
+                backgroundColor: item.dueValue > 10000 ? '#F44336' : 
+                               item.dueValue > 0 ? '#FF9800' : '#4CAF50' 
+              }]}
+              textStyle={styles.dueBadgeText}
+            >
+              {formatCurrency(item.dueValue)}
+            </Badge>
           </View>
           
-          <View style={styles.dueDetailRow}>
-            <MaterialCommunityIcons 
-              name="phone" 
-              size={16} 
-              color={theme.colors.onSurfaceVariant} 
-              style={styles.detailIcon}
-            />
-            <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-              {item.phone}
-            </Text>
-          </View>
-          
-          {item.lastPayment && (
+          <View style={styles.dueDetails}>
             <View style={styles.dueDetailRow}>
               <MaterialCommunityIcons 
-                name="clock" 
+                name="map-marker" 
                 size={16} 
                 color={theme.colors.onSurfaceVariant} 
                 style={styles.detailIcon}
               />
               <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-                Last payment: {item.lastPayment}
+                {item.address || 'No address provided'}
               </Text>
             </View>
-          )}
-          
-          <View style={styles.dueDetailRow}>
-            <MaterialCommunityIcons 
-              name="cash" 
-              size={16} 
-              color={theme.colors.onSurfaceVariant} 
-              style={styles.detailIcon}
-            />
-            <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
-              Total paid: {formatCurrency(item.totalPaid || 0)}
-            </Text>
+            
+            <View style={styles.dueDetailRow}>
+              <MaterialCommunityIcons 
+                name="phone" 
+                size={16} 
+                color={theme.colors.onSurfaceVariant} 
+                style={styles.detailIcon}
+              />
+              <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
+                {item.phone}
+              </Text>
+            </View>
+            
+            {item.lastPayment && (
+              <View style={styles.dueDetailRow}>
+                <MaterialCommunityIcons 
+                  name="clock" 
+                  size={16} 
+                  color={theme.colors.onSurfaceVariant} 
+                  style={styles.detailIcon}
+                />
+                <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
+                  Last payment: {item.lastPayment}
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.dueDetailRow}>
+              <MaterialCommunityIcons 
+                name="cash" 
+                size={16} 
+                color={theme.colors.onSurfaceVariant} 
+                style={styles.detailIcon}
+              />
+              <Text style={[styles.dueText, { color: theme.colors.onSurfaceVariant }]}>
+                Total paid: {formatCurrency(item.totalPaid || 0)}
+              </Text>
+            </View>
           </View>
-        </View>
-        
-        <View style={styles.dueActions}>
-          <TouchableOpacity
-            onPress={() => handleCallCustomer(item.phone)}
-            style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
-          >
-            <MaterialCommunityIcons 
-              name="phone" 
-              size={20} 
-              color={theme.colors.onPrimaryContainer} 
-            />
-          </TouchableOpacity>
           
-          <TouchableOpacity
-            onPress={() => handleMessageCustomer(item.phone)}
-            style={[styles.actionButton, { backgroundColor: theme.colors.tertiaryContainer }]}
-          >
-            <MaterialCommunityIcons 
-              name="message" 
-              size={20} 
-              color={theme.colors.onTertiaryContainer} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => {
-              Keyboard.dismiss();
-              router.push(`/duesScreen/${item._id}`);
-            }}
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
-          >
-            <MaterialCommunityIcons 
-              name="arrow-right" 
-              size={20} 
-              color={theme.colors.onPrimary} 
-            />
-          </TouchableOpacity>
-        </View>
-      </Card.Content>
-    </Card>
-  ), [theme, formatCurrency, handleCallCustomer, handleMessageCustomer]);
+          <View style={styles.dueActions}>
+            <TouchableOpacity
+              onPress={() => handleCallCustomer(item.phone)}
+              style={[styles.actionButton, { backgroundColor: theme.colors.primaryContainer }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons 
+                name="phone" 
+                size={20} 
+                color={theme.colors.onPrimaryContainer} 
+              />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push(`/duesScreen/${item._id}`);
+              }}
+              style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons 
+                name="arrow-right" 
+                size={20} 
+                color={theme.colors.onPrimary} 
+              />
+            </TouchableOpacity>
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
 
   if (loading && customers.length === 0) {
     return (
@@ -288,228 +282,236 @@ const DuesScreen = () => {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Appbar.Header style={[styles.appbar, { backgroundColor: theme.colors.surface }]}>
-          <Appbar.Content 
-            title="Dues Collection" 
-            titleStyle={[styles.appbarTitle, { color: theme.colors.onSurface }]}
-          />
-          <Appbar.Action 
-            icon="plus" 
-            onPress={() => setAddDueModalVisible(true)} 
-          />
-        </Appbar.Header>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <Appbar.Header style={[styles.appbar, { backgroundColor: theme.colors.surface }]}>
+            <Appbar.Content 
+              title="Dues Collection" 
+              titleStyle={[styles.appbarTitle, { color: theme.colors.onSurface }]}
+            />
+            <Appbar.Action 
+              icon="plus" 
+              onPress={() => setAddDueModalVisible(true)} 
+            />
+          </Appbar.Header>
 
-        {/* Search and Sort Header */}
-        <View style={[styles.searchSortContainer, { backgroundColor: theme.colors.background }]}>
-          <TextInput
-            mode="outlined"
-            placeholder="Search by name or phone..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={[styles.searchInput, { flex: 3 }]}
-            left={<TextInput.Icon icon="magnify" />}
-            right={searchQuery && <TextInput.Icon icon="close" onPress={() => setSearchQuery("")} />}
-            outlineColor={theme.colors.outline}
-            activeOutlineColor={theme.colors.primary}
-          />
+          {/* Search and Sort Header */}
+          <View style={[styles.searchSortContainer, { backgroundColor: theme.colors.background }]}>
+            <TextInput
+              mode="outlined"
+              autoFocus={false}
+              placeholder="Search by name or phone..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={[styles.searchInput, { flex: 3 }]}
+              left={<TextInput.Icon icon="magnify" />}
+              right={searchQuery && <TextInput.Icon icon="close" onPress={() => setSearchQuery("")} />}
+              outlineColor={theme.colors.outline}
+              activeOutlineColor={theme.colors.primary}
+            />
 
-          <Menu
-            visible={sortVisible}
-            onDismiss={() => setSortVisible(false)}
-            anchor={
-              <Button
-                ref={menuAnchorRef}
-                onPress={() => setSortVisible(true)}
-                mode="outlined"
-                style={[styles.sortButton, { flex: 1 }]}
-                icon="sort"
-                contentStyle={{ flexDirection: "row-reverse" }}
-                textColor={theme.colors.primary}
-              >
-                Sort
-              </Button>
-            }
-          >
-            {sortOptions.map((option, index) => (
-              <View key={option.value}>
-                <Menu.Item
-                  leadingIcon={sortOption === option.value ? "check" : null}
-                  onPress={() => {
-                    setSortOption(option.value);
-                    setSortVisible(false);
-                  }}
-                  title={option.label}
-                />
-                {index < sortOptions.length - 1 && <Divider />}
-              </View>
-            ))}
-          </Menu>
-        </View>
-
-        {/* Summary Bar */}
-        <View style={[styles.summaryContainer, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
-              Customers
-            </Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.primary }]}>
-              {totalCustomers}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryDivider} />
-          
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
-              Total Due
-            </Text>
-            <Text style={[styles.summaryValue, { color: '#F44336' }]}>
-              {formatCurrency(totalDue)}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryDivider} />
-          
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
-              Total Paid
-            </Text>
-            <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
-              {formatCurrency(totalPaid)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Dues List */}
-        <FlatList
-          data={filteredCustomers}
-          renderItem={renderItem}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          refreshing={loading}
-          onRefresh={refreshCustomers}
-          
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons 
-                name="credit-card-off" 
-                size={60} 
-                color={theme.colors.onSurfaceVariant} 
-              />
-              <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                {searchQuery ? "No matching customers found" : "No customers with dues available"}
-              </Text>
-              {!searchQuery && (
-                <Button 
-                  mode="contained" 
-                  onPress={() => setAddDueModalVisible(true)}
-                  style={styles.addFirstButton}
+            <Menu
+              visible={sortVisible}
+              onDismiss={() => setSortVisible(false)}
+              anchor={
+                <Button
+                  ref={menuAnchorRef}
+                  onPress={() => setSortVisible(true)}
+                  mode="outlined"
+                  style={[styles.sortButton, { flex: 1 }]}
+                  icon="sort"
+                  contentStyle={{ flexDirection: "row-reverse" }}
+                  textColor={theme.colors.primary}
                 >
-                  Add First Customer
+                  Sort
                 </Button>
-              )}
-            </View>
-          }
-        />
-
-        {/* Add Due Modal */}
-        <Modal
-          visible={addDueModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setAddDueModalVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.modalKeyboardView}
-              >
-                <View style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
-                  <View style={styles.modalHeader}>
-                    <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
-                      Add New Customer
-                    </Text>
-                    <IconButton 
-                      icon="close" 
-                      onPress={() => setAddDueModalVisible(false)}
-                      style={styles.closeButton}
-                    />
-                  </View>
-
-                  <ScrollView 
-                    contentContainerStyle={styles.modalScrollContent}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    <TextInput
-                      label="Customer Name *"
-                      value={newDue.name}
-                      onChangeText={(text) => setNewDue({...newDue, name: text})}
-                      mode="outlined"
-                      style={styles.modalInput}
-                      autoFocus
-                      theme={{ colors: { primary: theme.colors.primary } }}
-                    />
-
-                    <TextInput
-                      label="Phone Number *"
-                      value={newDue.phone}
-                      onChangeText={(text) => setNewDue({...newDue, phone: text})}
-                      keyboardType="phone-pad"
-                      mode="outlined"
-                      style={styles.modalInput}
-                      theme={{ colors: { primary: theme.colors.primary } }}
-                    />
-
-                    <TextInput
-                      label="Address"
-                      value={newDue.address}
-                      onChangeText={(text) => setNewDue({...newDue, address: text})}
-                      mode="outlined"
-                      style={styles.modalInput}
-                      theme={{ colors: { primary: theme.colors.primary } }}
-                    />
-
-                    <TextInput
-                      label="Notes"
-                      value={newDue.notes}
-                      onChangeText={(text) => setNewDue({...newDue, notes: text})}
-                      mode="outlined"
-                      style={styles.modalInput}
-                      multiline
-                      numberOfLines={3}
-                      theme={{ colors: { primary: theme.colors.primary } }}
-                    />
-
-                    <TextInput
-                      label="Initial Due Amount *"
-                      value={newDue.initialAmount}
-                      onChangeText={(text) => setNewDue({...newDue, initialAmount: text.replace(/[^0-9]/g, '')})}
-                      keyboardType="numeric"
-                      mode="outlined"
-                      style={styles.modalInput}
-                      left={<TextInput.Affix text="৳" />}
-                      theme={{ colors: { primary: theme.colors.primary } }}
-                    />
-
-                    <Button 
-                      mode="contained" 
-                      onPress={handleAddDue}
-                      style={[styles.modalButton, { marginTop: 16 }]}
-                      disabled={!newDue.name || !newDue.phone || !newDue.initialAmount}
-                      loading={createLoading}
-                      contentStyle={{ height: 48 }}
-                    >
-                      {createLoading ? '' : 'Add Customer'}
-                    </Button>
-                  </ScrollView>
+              }
+            >
+              {sortOptions.map((option, index) => (
+                <View key={option.value}>
+                  <Menu.Item
+                    leadingIcon={sortOption === option.value ? "check" : null}
+                    onPress={() => {
+                      setSortOption(option.value);
+                      setSortVisible(false);
+                    }}
+                    title={option.label}
+                  />
+                  {index < sortOptions.length - 1 && <Divider />}
                 </View>
-              </KeyboardAvoidingView>
+              ))}
+            </Menu>
+          </View>
+
+          {/* Summary Bar */}
+          <View style={[styles.summaryContainer, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Customers
+              </Text>
+              <Text style={[styles.summaryValue, { color: theme.colors.primary }]}>
+                {totalCustomers}
+              </Text>
             </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      </View>
+            
+            <View style={styles.summaryDivider} />
+            
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Total Due
+              </Text>
+              <Text style={[styles.summaryValue, { color: '#F44336' }]}>
+                {formatCurrency(totalDue)}
+              </Text>
+            </View>
+            
+            <View style={styles.summaryDivider} />
+            
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Total Paid
+              </Text>
+              <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
+                {formatCurrency(totalPaid)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Dues List */}
+          <FlatList
+            data={filteredCustomers}
+            renderItem={renderItem}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshing={loading}
+            onRefresh={refreshCustomers}
+            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={false}
+            style={{ flex: 1 }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons 
+                  name="credit-card-off" 
+                  size={60} 
+                  color={theme.colors.onSurfaceVariant} 
+                />
+                <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                  {searchQuery ? "No matching customers found" : "No customers with dues available"}
+                </Text>
+                {!searchQuery && (
+                  <Button 
+                    mode="contained" 
+                    onPress={() => setAddDueModalVisible(true)}
+                    style={styles.addFirstButton}
+                  >
+                    Add First Customer
+                  </Button>
+                )}
+              </View>
+            }
+          />
+
+          {/* Add Due Modal */}
+          <Modal
+            visible={addDueModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setAddDueModalVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                  style={styles.modalKeyboardView}
+                >
+                  <View style={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+                    <View style={styles.modalHeader}>
+                      <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
+                        Add New Customer
+                      </Text>
+                      <IconButton 
+                        icon="close" 
+                        onPress={() => setAddDueModalVisible(false)}
+                        style={styles.closeButton}
+                      />
+                    </View>
+
+                    <ScrollView 
+                      contentContainerStyle={styles.modalScrollContent}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      <TextInput
+                        label="Customer Name *"
+                        value={newDue.name}
+                        onChangeText={(text) => setNewDue({...newDue, name: text})}
+                        mode="outlined"
+                        style={styles.modalInput}
+                        autoFocus
+                        theme={{ colors: { primary: theme.colors.primary } }}
+                      />
+
+                      <TextInput
+                        label="Phone Number *"
+                        value={newDue.phone}
+                        onChangeText={(text) => setNewDue({...newDue, phone: text})}
+                        keyboardType="phone-pad"
+                        mode="outlined"
+                        style={styles.modalInput}
+                        theme={{ colors: { primary: theme.colors.primary } }}
+                      />
+
+                      <TextInput
+                        label="Address"
+                        value={newDue.address}
+                        onChangeText={(text) => setNewDue({...newDue, address: text})}
+                        mode="outlined"
+                        style={styles.modalInput}
+                        theme={{ colors: { primary: theme.colors.primary } }}
+                      />
+
+                      <TextInput
+                        label="Notes"
+                        value={newDue.notes}
+                        onChangeText={(text) => setNewDue({...newDue, notes: text})}
+                        mode="outlined"
+                        style={styles.modalInput}
+                        multiline
+                        numberOfLines={3}
+                        theme={{ colors: { primary: theme.colors.primary } }}
+                      />
+
+                      <TextInput
+                        label="Initial Due Amount *"
+                        value={newDue.initialAmount}
+                        onChangeText={(text) => setNewDue({...newDue, initialAmount: text.replace(/[^0-9]/g, '')})}
+                        keyboardType="numeric"
+                        mode="outlined"
+                        style={styles.modalInput}
+                        left={<TextInput.Affix text="৳" />}
+                        theme={{ colors: { primary: theme.colors.primary } }}
+                      />
+
+                      <Button 
+                        mode="contained" 
+                        onPress={handleAddDue}
+                        style={[styles.modalButton, { marginTop: 16 }]}
+                        disabled={!newDue.name || !newDue.phone || !newDue.initialAmount}
+                        loading={createLoading}
+                        contentStyle={{ height: 48 }}
+                      >
+                        {createLoading ? '' : 'Add Customer'}
+                      </Button>
+                    </ScrollView>
+                  </View>
+                </KeyboardAvoidingView>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        </View>
+      </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
 };
@@ -591,13 +593,12 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 24,
-    zIndex: 100,
   },
   dueCard: {
     marginBottom: 12,
     borderRadius: 8,
     elevation: 1,
-    zIndex : 200
+    overflow: 'hidden',
   },
   dueHeader: {
     flexDirection: 'row',
@@ -646,6 +647,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   emptyContainer: {
     flex: 1,
@@ -671,7 +673,7 @@ const styles = StyleSheet.create({
   modalKeyboardView: {
     flex: 1,
     width: '100%',
-    alignItems : 'center',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   modalContainer: {

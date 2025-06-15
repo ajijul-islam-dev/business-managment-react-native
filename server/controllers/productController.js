@@ -1,6 +1,9 @@
 import Product from '../models/Product.js';
 import Purchase from '../models/Purchase.js';
 import Sale from '../models/Sale.js';
+import Customer from '../models/Customer.js';
+import Payment from '../models/Payment.js';
+import Due from '../models/Due.js';
 import mongoose from 'mongoose';
 
 // Middleware to verify ownership
@@ -241,16 +244,17 @@ export const getDashboardMetrics = async (req, res) => {
     const userId = req.user._id;
     const { period } = req.query;
     const { startDate, endDate } = getDateRange(period, req.query);
-    const lowStockThreshold = 10; // Define your low-stock threshold
+    const lowStockThreshold = 10;
 
-    // 1. Sales Aggregation (unchanged)
-    const salesPromise = Sale.aggregate([
+    const result = await Sale.aggregate([
+      // Stage 1: Match sales in date range
       {
         $match: {
           createdBy: userId,
           date: { $gte: startDate, $lte: endDate }
         }
       },
+      // Stage 2: Group sales metrics
       {
         $group: {
           _id: null,
@@ -259,88 +263,173 @@ export const getDashboardMetrics = async (req, res) => {
           salesCount: { $sum: 1 },
           itemsSold: { $sum: "$quantity" }
         }
-      }
-    ]);
-
-    // 2. Purchases Aggregation (unchanged)
-    const purchasePromise = Purchase.aggregate([
-      {
-        $match: {
-          createdBy: userId,
-          date: { $gte: startDate, $lte: endDate }
-        }
       },
+      // Stage 3: Lookup purchases
       {
-        $group: {
-          _id: null,
-          purchased: { $sum: { $multiply: ["$quantity", "$unitCost"] } }
-        }
-      }
-    ]);
-
-    // 3. Inventory Status & Stock Value (UPDATED: Uses Product.price)
-    const inventoryPromise = Product.aggregate([
-      { 
-        $match: { 
-          createdBy: userId,
-          stock: { $gt: 0 } // Optional: Only count in-stock items
-        } 
-      },
-      {
-        $addFields: {
-          stockValue: { $multiply: ["$stock", "$price"] } // stock × selling price
-        }
-      },
-      {
-        $facet: {
-          totalProducts: [{ $count: 'count' }],
-          outOfStock: [
-            { $match: { stock: { $lte: 0 } } }, 
-            { $count: 'count' }
-          ],
-          lowStock: [
-            { $match: { stock: { $gt: 0, $lt: lowStockThreshold } } }, 
-            { $count: 'count' }
-          ],
-          stockValues: [
-            { 
-              $group: { 
-                _id: null, 
-                stockValue: { $sum: "$stockValue" } // Total stock value
-              } 
+        $lookup: {
+          from: "purchases",
+          let: { userId: userId, startDate: startDate, endDate: endDate },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$createdBy", "$$userId"] },
+                    { $gte: ["$date", "$$startDate"] },
+                    { $lte: ["$date", "$$endDate"] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                purchased: { $sum: { $multiply: ["$quantity", "$unitCost"] } }
+              }
             }
-          ]
+          ],
+          as: "purchaseData"
+        }
+      },
+      // Stage 4: Lookup inventory metrics
+      {
+        $lookup: {
+          from: "products",
+          let: { userId: userId, threshold: lowStockThreshold },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { $eq: ["$createdBy", "$$userId"] }
+              } 
+            },
+            {
+              $facet: {
+                totalProducts: [
+                  { $match: { stock: { $gt: 0 } } },
+                  { $count: "count" }
+                ],
+                outOfStock: [
+                  { $match: { stock: { $lte: 0 } } },
+                  { $count: "count" }
+                ],
+                lowStock: [
+                  { $match: { stock: { $gt: 0, $lt: "$$threshold" } } },
+                  { $count: "count" }
+                ],
+                stockValues: [
+                  { $match: { stock: { $gt: 0 } } },
+                  {
+                    $addFields: {
+                      stockValue: { $multiply: ["$stock", "$price"] }
+                    }
+                  },
+                  {
+                    $group: {
+                      _id: null,
+                      stockValue: { $sum: "$stockValue" }
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          as: "inventoryData"
+        }
+      },
+      // Stage 5: Lookup dues
+      {
+        $lookup: {
+          from: "dues",
+          let: { userId: userId },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$storeUserId", "$$userId"] }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalDues: { $sum: "$amount" }
+              }
+            }
+          ],
+          as: "duesData"
+        }
+      },
+      // Stage 6: Lookup payments
+      {
+        $lookup: {
+          from: "payments",
+          let: { userId: userId },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$storeUserId", "$$userId"] }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalPayments: { $sum: "$amount" }
+              }
+            }
+          ],
+          as: "paymentsData"
+        }
+      },
+      // Stage 7: Project final result with exact same structure
+      {
+        $project: {
+          sales: {
+            revenue: "$revenue",
+            count: "$salesCount",
+            itemsSold: "$itemsSold"
+          },
+          cost: "$cost",
+          profit: { $subtract: ["$revenue", "$cost"] },
+          purchased: { $ifNull: [{ $arrayElemAt: ["$purchaseData.purchased", 0] }, 0] },
+          dues: {
+            $max: [
+              0,
+              {
+                $subtract: [
+                  { $ifNull: [{ $arrayElemAt: ["$duesData.totalDues", 0] }, 0] },
+                  { $ifNull: [{ $arrayElemAt: ["$paymentsData.totalPayments", 0] }, 0] }
+                ]
+              }
+            ]
+          },
+          inventory: {
+            total: { $ifNull: [{ $arrayElemAt: ["$inventoryData.totalProducts.count", 0] }, 0] },
+            outOfStock: { $ifNull: [{ $arrayElemAt: ["$inventoryData.outOfStock.count", 0] }, 0] },
+            lowStock: { $ifNull: [{ $arrayElemAt: ["$inventoryData.lowStock.count", 0] }, 0] },
+            stockValue: { $ifNull: [{ $arrayElemAt: ["$inventoryData.stockValues.stockValue", 0] }, 0] }
+          }
         }
       }
     ]);
 
-    // Execute all promises in parallel
-    const [salesData, purchaseData, inventoryData] = await Promise.all([
-      salesPromise,
-      purchasePromise,
-      inventoryPromise
-    ]);
+    // Ensure the response structure matches exactly
+    const responseData = result[0] || {
+      sales: { revenue: 0, count: 0, itemsSold: 0 },
+      cost: 0,
+      profit: 0,
+      purchased: 0,
+      dues: 0,
+      inventory: {
+        total: 0,
+        outOfStock: 0,
+        lowStock: 0,
+        stockValue: 0
+      }
+    };
 
-    // Response (unchanged structure, but now uses accurate stockValue)
     res.status(200).json({
       success: true,
-      data: {
-        sales: {
-          revenue: salesData[0]?.revenue || 0,
-          count: salesData[0]?.salesCount || 0,
-          itemsSold: salesData[0]?.itemsSold || 0
-        },
-        cost: salesData[0]?.cost || 0,
-        profit: (salesData[0]?.revenue || 0) - (salesData[0]?.cost || 0),
-        purchased: purchaseData[0]?.purchased || 0,
-        inventory: {
-          total: inventoryData[0].totalProducts[0]?.count || 0,
-          outOfStock: inventoryData[0].outOfStock[0]?.count || 0,
-          lowStock: inventoryData[0].lowStock[0]?.count || 0,
-          stockValue: inventoryData[0].stockValues[0]?.stockValue || 0
-        }
-      }
+      data: responseData
     });
+
   } catch (err) {
     console.error('Error fetching dashboard metrics:', err);
     res.status(500).json({

@@ -34,7 +34,7 @@ const HomeScreen = () => {
   const [visible, setVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState("week");
+  const [selectedPeriod, setSelectedPeriod] = useState("today");
   const [selectedPeriodLabel, setSelectedPeriodLabel] = useState("Today");
   const [range, setRange] = useState({
     startDate: new Date(),
@@ -106,6 +106,7 @@ const HomeScreen = () => {
     if (typeof value === 'number') return value.toLocaleString();
     return value || '--';
   };
+  console.log(dashboardMetrics);
 
   // Quick action metrics
   const clickableMetrics = [
@@ -138,12 +139,12 @@ const HomeScreen = () => {
       href: "/outOfStock" 
     },
     { 
-      title: "Current Dues", 
-      value: "3500", 
-      icon: "exclamation-triangle", 
-      color: "#F44336",
-      href: "/duesScreen" 
-    },
+  title: "Current Dues", 
+  value: formatMetricValue(dashboardMetrics.dues), 
+  icon: "exclamation-triangle", 
+  color: "#F44336",
+  href: "/duesScreen" 
+},
     { 
       title: "Current Stock Value", 
       value:formatMetricValue(dashboardMetrics.inventory?.stockValue), 

@@ -116,7 +116,6 @@ const ProductProvider = ({ children }) => {
   };
 
   const handleSale = async (productId, quantity, saledUnitPrice,costUnitPrice) => {
-    alert(costUnitPrice)
     try {
       setLoading(true);
       await axiosSecure.post(`/api/products/${productId}/sale`, { 

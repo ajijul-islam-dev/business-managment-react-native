@@ -144,7 +144,6 @@ export const getStoreTransactions = async (req, res) => {
 
 // Get all customers for a store
 export const getStoreCustomers = async (req, res) => {
-  console.log('shocked');
   
   try {
     const storeUserId = req.user._id;
