@@ -406,6 +406,7 @@ console.log(loading);
                     Cancel
                   </Button>
                   <Button 
+                    disabled={loading}
                     mode="contained" 
                     onPress={submitPurchase}
                     style={styles.submitButton}
@@ -478,6 +479,7 @@ console.log(loading);
                     Cancel
                   </Button>
                   <Button 
+                    disabled={loading}
                     mode="contained" 
                     onPress={submitSale}
                     style={styles.submitButton}
